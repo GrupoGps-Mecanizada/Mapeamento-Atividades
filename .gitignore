@@ -1,0 +1,19 @@
+# Dependências
+node_modules/
+.env
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/
+*.swp
+*.swo
+
+# Uploads locais
+uploads/
+
+# Logs
+*.log

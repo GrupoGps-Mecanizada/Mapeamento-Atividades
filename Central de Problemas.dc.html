@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *{box-sizing:border-box;}
+    body{margin:0;-webkit-font-smoothing:antialiased;}
+    select,input,textarea,button{font-family:'Manrope',sans-serif;}
+    a{color:oklch(46% 0.17 258);text-decoration:none;}
+    a:hover{color:oklch(38% 0.17 258);}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+    #busca-problemas::placeholder{color:rgba(255,255,255,0.75);}
+  </style>
+</helmet>
+
+<div style="font-family:'Manrope',sans-serif;background:oklch(96% 0.006 258);min-height:100vh;color:oklch(20% 0.012 258);">
+
+  <header style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:20px;padding:26px 40px;background:radial-gradient(ellipse at 30% 40%, oklch(58% 0.23 264) 0%, oklch(46% 0.24 265) 60%, oklch(40% 0.22 266) 100%);">
+    <div style="display:flex;align-items:baseline;gap:6px;flex-shrink:0;">
+      <span style="font-size:20px;font-weight:300;letter-spacing:0.04em;color:#fff;white-space:nowrap;">GRUPO</span>
+      <span style="font-size:26px;font-weight:800;letter-spacing:0.01em;color:#fff;white-space:nowrap;">GPS</span>
+      <span style="font-size:16px;font-weight:400;letter-spacing:0.03em;color:rgba(255,255,255,0.82);white-space:nowrap;margin-left:2px;">Mecanizada</span>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:14px;">
+      <input id="busca-problemas" type="text" placeholder="Buscar problemas..." value="{{ busca }}" onChange="{{ setBusca }}" style="padding:11px 16px;border-radius:10px;border:1px solid rgba(255,255,255,0.3);background:rgba(255,255,255,0.14);font-size:14px;width:220px;color:#fff;"/>
+      <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:rgba(255,255,255,0.85);">
+        <span>Você é</span>
+        <select value="{{ currentUserId }}" onChange="{{ setCurrentUser }}" style="padding:9px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.3);background:rgba(255,255,255,0.14);font-size:14px;font-weight:600;color:#fff;cursor:pointer;">
+          <sc-for list="{{ teamList }}" as="t" hint-placeholder-count="3">
+            <option value="{{ t.id }}">{{ t.nome }}</option>
+          </sc-for>
+        </select>
+      </div>
+      <button onClick="{{ openNew }}" style="padding:12px 22px;border-radius:10px;border:none;background:#fff;color:oklch(46% 0.24 265);font-size:14px;font-weight:800;cursor:pointer;">+ Novo problema</button>
+    </div>
+  </header>
+  <div style="padding:10px 40px;background:#fff;font-size:12px;letter-spacing:0.04em;text-transform:uppercase;color:oklch(52% 0.05 264);border-bottom:1px solid oklch(93% 0.008 258);">Central de Problemas</div>
+
+  <div style="padding:24px 40px 0;">
+    <div style="display:flex;gap:28px;border-bottom:1px solid oklch(84% 0.035 258);">
+      <button data-tab="dashboard" onClick="{{ onTabClick }}" style="{{ tabDashboardStyle }}">Dashboard</button>
+      <button data-tab="lista" onClick="{{ onTabClick }}" style="{{ tabListaStyle }}">Lista</button>
+      <button data-tab="config" onClick="{{ onTabClick }}" style="{{ tabConfigStyle }}">Configurações</button>
+    </div>
+
+    <sc-if value="{{ showFilters }}" hint-placeholder-val="{{ true }}">
+      <div style="display:flex;flex-wrap:wrap;gap:12px;margin:20px 0;">
+        <select value="{{ filters.setor }}" onChange="{{ setSetorFilter }}" style="padding:10px 14px;border-radius:10px;border:1px solid oklch(88% 0.006 258);background:#fff;font-size:14px;min-width:170px;cursor:pointer;">
+          <option value="todos">Todos os setores</option>
+          <sc-for list="{{ setoresList }}" as="s" hint-placeholder-count="5">
+            <option value="{{ s }}">{{ s }}</option>
+          </sc-for>
+        </select>
+        <select value="{{ filters.criticidade }}" onChange="{{ setCriticidadeFilter }}" style="padding:10px 14px;border-radius:10px;border:1px solid oklch(88% 0.006 258);background:#fff;font-size:14px;min-width:170px;cursor:pointer;">
+          <option value="todos">Todas as criticidades</option>
+          <sc-for list="{{ criticidadesList }}" as="c" hint-placeholder-count="3">
+            <option value="{{ c }}">{{ c }}</option>
+          </sc-for>
+        </select>
+        <select value="{{ filters.responsavel }}" onChange="{{ setResponsavelFilter }}" style="padding:10px 14px;border-radius:10px;border:1px solid oklch(88% 0.006 258);background:#fff;font-size:14px;min-width:190px;cursor:pointer;">
+          <option value="todos">Todos os responsáveis</option>
+          <sc-for list="{{ teamList }}" as="t" hint-placeholder-count="5">
+            <option value="{{ t.id }}">{{ t.nome }}</option>
+          </sc-for>
+        </select>
+      </div>
+    </sc-if>
+  </div>
+
+  <main style="padding:8px 40px 56px;">
+
+    <sc-if value="{{ isLista }}" hint-placeholder-val="{{ true }}">
+      <div style="background:#fff;border-radius:16px;border:1px solid oklch(84% 0.035 258);overflow:hidden;">
+        <table style="width:100%;border-collapse:collapse;">
+          <thead>
+            <tr style="background:oklch(46% 0.17 258);">
+              <th style="text-align:left;padding:14px 16px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#fff;">Título</th>
+              <th style="text-align:left;padding:14px 16px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#fff;">Setor</th>
+              <th style="text-align:left;padding:14px 16px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#fff;">Criticidade</th>
+              <th style="text-align:left;padding:14px 16px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#fff;">Responsável</th>
+              <th style="text-align:left;padding:14px 16px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#fff;">Status</th>
+              <th style="text-align:left;padding:14px 16px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#fff;">Prazo ↑</th>
+              <th style="text-align:left;padding:14px 16px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#fff;">Aberto por</th>
+            </tr>
+          </thead>
+          <tbody>
+            <sc-for list="{{ filteredProblems }}" as="p" hint-placeholder-count="4">
+              <tr data-id="{{ p.id }}" onClick="{{ openEditFromRow }}" style-hover="background:oklch(93% 0.05 258);" style="border-bottom:1px solid oklch(90% 0.02 258);cursor:pointer;background:{{ p.rowBg }};">
+                <td style="padding:14px 16px;font-size:14px;font-weight:700;">{{ p.titulo }}</td>
+                <td style="padding:14px 16px;font-size:13px;color:oklch(45% 0.02 258);">{{ p.setor }}</td>
+                <td style="padding:14px 16px;"><span style="border-radius:999px;padding:4px 10px;font-size:11px;font-weight:700;{{ p.critBadgeStyle }}">{{ p.criticidade }}</span></td>
+                <td style="padding:14px 16px;">
+                  <div style="display:flex;align-items:center;gap:8px;">
+                    <span style="width:24px;height:24px;border-radius:50%;background:oklch(90% 0.06 258);color:oklch(40% 0.17 258);font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;">{{ p.responsavelIniciais }}</span>
+                    <span style="font-size:13px;font-weight:600;">{{ p.responsavelNome }}</span>
+                  </div>
+                </td>
+                <td style="padding:14px 16px;"><span style="border-radius:999px;padding:4px 10px;font-size:11px;font-weight:700;{{ p.statusBadgeStyle }}">{{ p.status }}</span></td>
+                <td style="padding:14px 16px;font-size:13px;font-weight:700;{{ p.prazoStyle }}">{{ p.prazoFmt }}</td>
+                <td style="padding:14px 16px;font-size:13px;color:oklch(52% 0.02 258);">{{ p.abertoPorNome }}</td>
+              </tr>
+            </sc-for>
+            <sc-if value="{{ noResults }}" hint-placeholder-val="{{ false }}">
+              <tr><td colspan="7" style="padding:60px;text-align:center;font-size:14px;color:oklch(58% 0.015 258);">Nenhum problema encontrado com esses filtros.</td></tr>
+            </sc-if>
+          </tbody>
+        </table>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isDashboard }}" hint-placeholder-val="{{ false }}">
+      <div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;">
+          <sc-for list="{{ kpis }}" as="k" hint-placeholder-count="5">
+            <div style="background:#fff;border-radius:16px;padding:20px;border:1px solid oklch(84% 0.035 258);">
+              <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:oklch(52% 0.02 258);">{{ k.label }}</div>
+              <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-top:8px;">
+                <div style="font-family:'Manrope',sans-serif;font-size:34px;font-weight:800;{{ k.colorStyle }}">{{ k.valor }}</div>
+                <div style="display:flex;align-items:flex-end;gap:3px;height:30px;border-bottom:1px solid oklch(90% 0.02 258);padding-bottom:2px;">
+                  <sc-for list="{{ k.spark }}" as="b" hint-placeholder-count="5">
+                    <div style="width:6px;border-radius:2px;flex-shrink:0;{{ b.style }}"></div>
+                  </sc-for>
+                </div>
+              </div>
+              <div style="font-size:10px;color:oklch(60% 0.02 258);margin-top:6px;">por setor</div>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px;margin-top:24px;">
+          <div style="background:#fff;border-radius:16px;padding:22px;border:1px solid oklch(84% 0.035 258);">
+            <div style="font-family:'Manrope',sans-serif;font-weight:600;font-size:17px;margin-bottom:16px;">Problemas em aberto por setor</div>
+            <sc-for list="{{ porSetorRows }}" as="r" hint-placeholder-count="5">
+              <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+                <span style="width:110px;font-size:13px;color:oklch(45% 0.02 258);flex-shrink:0;">{{ r.setor }}</span>
+                <div style="flex:1;height:10px;background:oklch(94% 0.005 258);border-radius:6px;overflow:hidden;">
+                  <div style="height:10px;border-radius:6px;{{ r.barStyle }}"></div>
+                </div>
+                <span style="width:24px;text-align:right;font-size:13px;font-weight:700;">{{ r.count }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <div style="background:#fff;border-radius:16px;padding:22px;border:1px solid oklch(84% 0.035 258);">
+            <div style="font-family:'Manrope',sans-serif;font-weight:600;font-size:17px;margin-bottom:16px;">Problemas em aberto por criticidade</div>
+            <sc-for list="{{ porCriticidadeRows }}" as="r" hint-placeholder-count="3">
+              <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+                <span style="width:110px;font-size:13px;color:oklch(45% 0.02 258);flex-shrink:0;">{{ r.criticidade }}</span>
+                <div style="flex:1;height:10px;background:oklch(94% 0.005 258);border-radius:6px;overflow:hidden;">
+                  <div style="height:10px;border-radius:6px;{{ r.barStyle }}"></div>
+                </div>
+                <span style="width:24px;text-align:right;font-size:13px;font-weight:700;">{{ r.count }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="background:#fff;border-radius:16px;padding:22px;border:1px solid oklch(84% 0.035 258);margin-top:20px;">
+          <div style="font-family:'Manrope',sans-serif;font-weight:600;font-size:17px;margin-bottom:12px;">Mais antigos em aberto</div>
+          <sc-for list="{{ antigos }}" as="p" hint-placeholder-count="5">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid oklch(94% 0.006 258);">
+              <div style="display:flex;align-items:center;gap:10px;">
+                <span style="font-size:14px;font-weight:600;">{{ p.titulo }}</span>
+                <span style="background:oklch(95% 0.006 258);color:oklch(45% 0.02 258);border-radius:999px;padding:3px 9px;font-size:11px;font-weight:600;">{{ p.setor }}</span>
+              </div>
+              <span style="border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700;{{ p.diasPillStyle }}">{{ p.diasLabel }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isConfig }}" hint-placeholder-val="{{ false }}">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px;">
+        <div style="background:#fff;border-radius:16px;padding:22px;border:1px solid oklch(84% 0.035 258);">
+          <div style="font-family:'Manrope',sans-serif;font-weight:600;font-size:17px;margin-bottom:16px;">Setores</div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;">
+            <sc-for list="{{ setoresConfig }}" as="s" hint-placeholder-count="5">
+              <span style="display:flex;align-items:center;gap:6px;background:oklch(95% 0.006 258);border-radius:999px;padding:6px 6px 6px 14px;font-size:13px;font-weight:600;">
+                {{ s }}
+                <button data-setor="{{ s }}" onClick="{{ removeSetorClick }}" style="border:none;background:oklch(90% 0.006 258);width:20px;height:20px;border-radius:50%;font-size:12px;cursor:pointer;color:oklch(45% 0.02 258);">×</button>
+              </span>
+            </sc-for>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <input type="text" value="{{ novoSetor }}" onChange="{{ onNovoSetorChange }}" placeholder="Novo setor..." style="flex:1;padding:10px 14px;border-radius:10px;border:1px solid oklch(88% 0.006 258);font-size:14px;"/>
+            <button onClick="{{ addSetor }}" style="padding:10px 18px;border-radius:10px;border:none;background:oklch(46% 0.17 258);color:#fff;font-size:14px;font-weight:700;cursor:pointer;">Adicionar</button>
+          </div>
+        </div>
+
+        <div style="background:#fff;border-radius:16px;padding:22px;border:1px solid oklch(84% 0.035 258);">
+          <div style="font-family:'Manrope',sans-serif;font-weight:600;font-size:17px;margin-bottom:16px;">Pessoas</div>
+          <sc-for list="{{ pessoasConfig }}" as="pes" hint-placeholder-count="5">
+            <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid oklch(94% 0.006 258);">
+              <span style="width:26px;height:26px;border-radius:50%;background:oklch(94% 0.04 258);color:oklch(45% 0.17 258);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;">{{ pes.iniciais }}</span>
+              <span style="flex:1;font-size:14px;font-weight:600;">{{ pes.nome }}</span>
+              <select data-id="{{ pes.id }}" value="{{ pes.setor }}" onChange="{{ onPessoaSetorChange }}" style="padding:8px 10px;border-radius:8px;border:1px solid oklch(88% 0.006 258);font-size:13px;cursor:pointer;">
+                <sc-for list="{{ setoresConfig }}" as="s" hint-placeholder-count="5"><option value="{{ s }}">{{ s }}</option></sc-for>
+              </select>
+              <button data-id="{{ pes.id }}" onClick="{{ removePessoaClick }}" style="border:none;background:oklch(95% 0.005 258);width:28px;height:28px;border-radius:50%;font-size:13px;cursor:pointer;color:oklch(45% 0.02 258);flex-shrink:0;">×</button>
+            </div>
+          </sc-for>
+          <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;">
+            <input type="text" value="{{ novaPessoaNome }}" onChange="{{ onNovaPessoaNomeChange }}" placeholder="Nome da pessoa..." style="flex:1;min-width:160px;padding:10px 14px;border-radius:10px;border:1px solid oklch(88% 0.006 258);font-size:14px;"/>
+            <select value="{{ novaPessoaSetor }}" onChange="{{ onNovaPessoaSetorChange }}" style="padding:10px 12px;border-radius:10px;border:1px solid oklch(88% 0.006 258);font-size:14px;cursor:pointer;">
+              <option value="">Setor</option>
+              <sc-for list="{{ setoresConfig }}" as="s" hint-placeholder-count="5"><option value="{{ s }}">{{ s }}</option></sc-for>
+            </select>
+            <button onClick="{{ addPessoa }}" style="padding:10px 18px;border-radius:10px;border:none;background:oklch(46% 0.17 258);color:#fff;font-size:14px;font-weight:700;cursor:pointer;">Adicionar</button>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+  </main>
+
+  <sc-if value="{{ modalOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closeModal }}" style="position:fixed;inset:0;background:rgba(15,23,42,0.45);display:flex;align-items:center;justify-content:center;padding:24px;z-index:50;">
+      <div onClick="{{ stopProp }}" style="background:#fff;border-radius:20px;padding:32px;width:min(560px,100%);max-height:88vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.25);animation:fadeIn 0.18s ease-out;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;">
+          <h2 style="margin:0;font-family:'Manrope',sans-serif;font-size:22px;font-weight:600;">{{ modalTitle }}</h2>
+          <button onClick="{{ closeModal }}" style="border:none;background:oklch(95% 0.005 258);width:32px;height:32px;border-radius:50%;font-size:16px;cursor:pointer;color:oklch(45% 0.02 258);">×</button>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:16px;">
+          <div>
+            <label style="display:block;font-size:12px;font-weight:700;color:oklch(45% 0.02 258);margin-bottom:6px;">Título</label>
+            <input type="text" value="{{ draftTitulo }}" onChange="{{ onDraftTituloChange }}" placeholder="Ex: Falta de estoque de EPI" style="width:100%;padding:11px 14px;border-radius:10px;border:1px solid oklch(88% 0.006 258);font-size:14px;"/>
+          </div>
+          <div>
+            <label style="display:block;font-size:12px;font-weight:700;color:oklch(45% 0.02 258);margin-bottom:6px;">Descrição</label>
+            <textarea value="{{ draftDescricao }}" onChange="{{ onDraftDescricaoChange }}" placeholder="Detalhe o problema..." rows="3" style="width:100%;padding:11px 14px;border-radius:10px;border:1px solid oklch(88% 0.006 258);font-size:14px;resize:vertical;font-family:'Manrope',sans-serif;"></textarea>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+            <div>
+              <label style="display:block;font-size:12px;font-weight:700;color:oklch(45% 0.02 258);margin-bottom:6px;">Setor</label>
+              <select value="{{ draftSetor }}" onChange="{{ onDraftSetorChange }}" style="width:100%;padding:11px 14px;border-radius:10px;border:1px solid oklch(88% 0.006 258);font-size:14px;cursor:pointer;">
+                <option value="">Selecione</option>
+                <sc-for list="{{ setoresList }}" as="s" hint-placeholder-count="5"><option value="{{ s }}">{{ s }}</option></sc-for>
+              </select>
+            </div>
+            <div>
+              <label style="display:block;font-size:12px;font-weight:700;color:oklch(45% 0.02 258);margin-bottom:6px;">Criticidade</label>
+              <select value="{{ draftCriticidade }}" onChange="{{ onDraftCriticidadeChange }}" style="width:100%;padding:11px 14px;border-radius:10px;border:1px solid oklch(88% 0.006 258);font-size:14px;cursor:pointer;">
+                <option value="">Selecione</option>
+                <sc-for list="{{ criticidadesList }}" as="c" hint-placeholder-count="3"><option value="{{ c }}">{{ c }}</option></sc-for>
+              </select>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+            <div>
+              <label style="display:block;font-size:12px;font-weight:700;color:oklch(45% 0.02 258);margin-bottom:6px;">Responsável</label>
+              <select value="{{ draftResponsavelId }}" onChange="{{ onDraftResponsavelChange }}" style="width:100%;padding:11px 14px;border-radius:10px;border:1px solid oklch(88% 0.006 258);font-size:14px;cursor:pointer;">
+                <option value="">Selecione</option>
+                <sc-for list="{{ teamList }}" as="t" hint-placeholder-count="5"><option value="{{ t.id }}">{{ t.nome }}</option></sc-for>
+              </select>
+            </div>
+            <div>
+              <label style="display:block;font-size:12px;font-weight:700;color:oklch(45% 0.02 258);margin-bottom:6px;">Prazo</label>
+              <input type="date" value="{{ draftPrazo }}" onChange="{{ onDraftPrazoChange }}" style="width:100%;padding:11px 14px;border-radius:10px;border:1px solid oklch(88% 0.006 258);font-size:14px;"/>
+            </div>
+          </div>
+
+          <sc-if value="{{ modalIsNew }}" hint-placeholder-val="{{ true }}">
+            <div>
+              <label style="display:block;font-size:12px;font-weight:700;color:oklch(45% 0.02 258);margin-bottom:6px;">Aberto por</label>
+              <select value="{{ draftAbertoPorId }}" onChange="{{ onDraftAbertoPorChange }}" style="width:100%;padding:11px 14px;border-radius:10px;border:1px solid oklch(88% 0.006 258);font-size:14px;cursor:pointer;">
+                <option value="">Selecione</option>
+                <sc-for list="{{ teamList }}" as="t" hint-placeholder-count="5"><option value="{{ t.id }}">{{ t.nome }}</option></sc-for>
+              </select>
+            </div>
+          </sc-if>
+          <sc-if value="{{ modalIsEdit }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;gap:20px;font-size:13px;color:oklch(52% 0.02 258);">
+              <span>Aberto por <strong style="color:oklch(24% 0.015 258);">{{ modalAbertoPorNome }}</strong></span>
+              <span>em <strong style="color:oklch(24% 0.015 258);">{{ modalCriadoFmt }}</strong></span>
+            </div>
+          </sc-if>
+
+          <div>
+            <label style="display:block;font-size:12px;font-weight:700;color:oklch(45% 0.02 258);margin-bottom:8px;">Status</label>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;">
+              <sc-for list="{{ statusPillOptions }}" as="sp" hint-placeholder-count="5">
+                <button data-status="{{ sp.status }}" onClick="{{ selectStatusPill }}" style="padding:8px 14px;border-radius:999px;font-size:13px;font-weight:600;cursor:pointer;border:1px solid oklch(88% 0.006 258);{{ sp.style }}">{{ sp.status }}</button>
+              </sc-for>
+            </div>
+          </div>
+
+          <sc-if value="{{ modalIsEdit }}" hint-placeholder-val="{{ false }}">
+            <div style="border-top:1px solid oklch(93% 0.006 258);margin-top:6px;padding-top:16px;">
+              <div style="font-family:'Manrope',sans-serif;font-weight:600;font-size:16px;margin-bottom:12px;">Histórico</div>
+              <sc-if value="{{ modalComentariosEmpty }}" hint-placeholder-val="{{ true }}">
+                <div style="font-size:13px;color:oklch(60% 0.015 258);margin-bottom:12px;">Nenhum comentário ainda.</div>
+              </sc-if>
+              <sc-for list="{{ modalComentarios }}" as="cm" hint-placeholder-count="2">
+                <div style="margin-bottom:12px;padding:10px 12px;background:oklch(97% 0.004 258);border-radius:10px;">
+                  <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;">
+                    <strong>{{ cm.autor }}</strong>
+                    <span style="color:oklch(58% 0.015 258);">{{ cm.dataFmt }}</span>
+                  </div>
+                  <div style="font-size:13px;line-height:1.4;">{{ cm.texto }}</div>
+                </div>
+              </sc-for>
+              <div style="display:flex;gap:8px;margin-top:8px;">
+                <input type="text" value="{{ novoComentario }}" onChange="{{ onNovoComentarioChange }}" placeholder="Adicionar comentário..." style="flex:1;padding:10px 14px;border-radius:10px;border:1px solid oklch(88% 0.006 258);font-size:13px;"/>
+                <button onClick="{{ addComment }}" style="padding:10px 16px;border-radius:10px;border:none;background:oklch(95% 0.005 258);font-size:13px;font-weight:700;cursor:pointer;color:oklch(35% 0.02 258);">Enviar</button>
+              </div>
+            </div>
+          </sc-if>
+
+          <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:10px;">
+            <button onClick="{{ closeModal }}" style="padding:12px 20px;border-radius:10px;border:1px solid oklch(88% 0.006 258);background:#fff;font-size:14px;font-weight:700;cursor:pointer;">Cancelar</button>
+            <button onClick="{{ saveDraft }}" disabled="{{ saveDisabled }}" style="{{ saveButtonStyle }}">{{ saveButtonLabel }}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;aging_threshold_days&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:14,&quot;min&quot;:5,&quot;max&quot;:45,&quot;step&quot;:1,&quot;unit&quot;:&quot;dias&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Comportamento&quot;},&quot;default_view&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;lista&quot;,&quot;options&quot;:[&quot;lista&quot;,&quot;dashboard&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Comportamento&quot;}}">
+const DEFAULT_TEAM = [
+  {id:'t1', nome:'Marcos Andrade', setor:'Coordenação'},
+  {id:'t2', nome:'Juliana Ferreira', setor:'Supervisores'},
+  {id:'t3', nome:'Ricardo Souza', setor:'Supervisores'},
+  {id:'t4', nome:'Aline Barros', setor:'Supervisores'},
+  {id:'t5', nome:'Camila Rocha', setor:'Planejamento'},
+  {id:'t6', nome:'Bruno Lima', setor:'Planejamento'},
+  {id:'t7', nome:'Patrícia Gomes', setor:'Segurança'},
+  {id:'t8', nome:'Eduardo Alves', setor:'Segurança'},
+  {id:'t9', nome:'Fernanda Costa', setor:'Almoxarifado'},
+  {id:'t10', nome:'Diego Martins', setor:'Almoxarifado'},
+];
+const DEFAULT_SETORES = ['Almoxarifado','Segurança','Planejamento','Supervisores','Coordenação'];
+const CRITICIDADES = ['Baixa','Média','Alta'];
+const STATUSES = ['Aberto','Em andamento','Aguardando terceiros','Resolvido','Cancelado'];
+
+const CRIT_STYLE = {
+  'Baixa': {bg:'oklch(94% 0.05 155)', color:'oklch(38% 0.13 155)'},
+  'Média': {bg:'oklch(95% 0.06 80)', color:'oklch(42% 0.14 70)'},
+  'Alta': {bg:'oklch(94% 0.06 25)', color:'oklch(45% 0.17 25)'},
+};
+const STATUS_STYLE = {
+  'Aberto': {bg:'oklch(93% 0.008 258)', color:'oklch(40% 0.02 258)'},
+  'Em andamento': {bg:'oklch(93% 0.06 258)', color:'oklch(45% 0.17 258)'},
+  'Aguardando terceiros': {bg:'oklch(94% 0.05 300)', color:'oklch(45% 0.14 300)'},
+  'Resolvido': {bg:'oklch(94% 0.05 155)', color:'oklch(38% 0.13 155)'},
+  'Cancelado': {bg:'oklch(93% 0.006 258)', color:'oklch(55% 0.01 258)'},
+};
+const OPEN_STATUSES = ['Aberto','Em andamento','Aguardando terceiros'];
+
+const SEED = [
+  {id:'p1', titulo:'Falta de estoque de luvas de segurança', descricao:'Almoxarifado sem luvas nível 3 há 2 semanas, operação usando luvas inadequadas.', setor:'Almoxarifado', criticidade:'Alta', status:'Aberto', responsavelId:'t9', abertoPorId:'t7', criadoEm:'2026-08-20', prazo:'2026-09-18', comentarios:[{autor:'Patrícia Gomes', texto:'Já reportei ao fornecedor duas vezes.', data:'2026-08-25'}]},
+  {id:'p2', titulo:'Extintores com validade vencida no galpão B', descricao:'6 extintores vencidos desde julho, aguardando recarga.', setor:'Segurança', criticidade:'Alta', status:'Em andamento', responsavelId:'t7', abertoPorId:'t2', criadoEm:'2026-08-10', prazo:'2026-09-20', comentarios:[{autor:'Eduardo Alves', texto:'Recarga agendada para semana que vem.', data:'2026-09-05'}]},
+  {id:'p3', titulo:'Cronograma de manutenção atrasado', descricao:'Planejamento não recebeu confirmação de datas da equipe externa.', setor:'Planejamento', criticidade:'Média', status:'Aguardando terceiros', responsavelId:'t5', abertoPorId:'t1', criadoEm:'2026-08-28', prazo:'2026-09-25', comentarios:[]},
+  {id:'p4', titulo:'Treinamento de NR-12 pendente', descricao:'3 operadores novos ainda não passaram pelo treinamento obrigatório.', setor:'Supervisores', criticidade:'Alta', status:'Aberto', responsavelId:'t2', abertoPorId:'t1', criadoEm:'2026-09-01', prazo:'2026-09-16', comentarios:[]},
+  {id:'p5', titulo:'Processo de compra sem responsável definido', descricao:'Ninguém sabe quem aprova compras acima de R$ 500.', setor:'Coordenação', criticidade:'Média', status:'Aberto', responsavelId:'t1', abertoPorId:'t6', criadoEm:'2026-07-30', prazo:'2026-09-30', comentarios:[{autor:'Marcos Andrade', texto:'Vou definir isso na reunião de sexta.', data:'2026-09-10'}]},
+  {id:'p6', titulo:'Empilhadeira com barulho estranho', descricao:'Operador relatou ruído no motor, aguardando avaliação técnica.', setor:'Almoxarifado', criticidade:'Média', status:'Em andamento', responsavelId:'t10', abertoPorId:'t9', criadoEm:'2026-09-05', prazo:'2026-09-19', comentarios:[]},
+  {id:'p7', titulo:'Piso escorregadio próximo à doca 3', descricao:'Vazamento recorrente de óleo hidráulico.', setor:'Segurança', criticidade:'Alta', status:'Resolvido', responsavelId:'t8', abertoPorId:'t3', criadoEm:'2026-08-01', prazo:'2026-08-15', comentarios:[{autor:'Eduardo Alves', texto:'Vedação trocada, problema resolvido.', data:'2026-08-14'}]},
+  {id:'p8', titulo:'Etiquetas de identificação de estoque desatualizadas', descricao:'Códigos não correspondem ao sistema.', setor:'Almoxarifado', criticidade:'Baixa', status:'Cancelado', responsavelId:'t9', abertoPorId:'t9', criadoEm:'2026-07-15', prazo:'2026-08-01', comentarios:[{autor:'Fernanda Costa', texto:'Sistema novo já resolve isso automaticamente.', data:'2026-07-20'}]},
+  {id:'p9', titulo:'Falta de sinalização na área de carregamento', descricao:'Área nova sem placas de segurança.', setor:'Segurança', criticidade:'Média', status:'Aberto', responsavelId:'t7', abertoPorId:'t4', criadoEm:'2026-09-08', prazo:'2026-09-22', comentarios:[]},
+  {id:'p10', titulo:'Planilha de indicadores sem atualização', descricao:'KPIs do setor de planejamento desatualizados há 1 mês.', setor:'Planejamento', criticidade:'Baixa', status:'Em andamento', responsavelId:'t6', abertoPorId:'t5', criadoEm:'2026-08-25', prazo:'2026-09-17', comentarios:[]},
+];
+
+function initials(nome){ return nome.split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase(); }
+function fmtDate(iso){ if(!iso) return '—'; const [y,m,d]=iso.split('-'); return d+'/'+m+'/'+y; }
+function daysSince(iso){ if(!iso) return 0; const today=new Date(); const d=new Date(iso+'T00:00:00'); return Math.floor((today-d)/86400000); }
+
+class Component extends DCLogic {
+  state = {
+    activeTab: undefined,
+    filters: {setor:'todos', criticidade:'todos', responsavel:'todos'},
+    busca: '',
+    modal: null,
+    novoComentario: '',
+    currentUserId: 't1',
+    problems: SEED,
+    team: DEFAULT_TEAM,
+    setores: DEFAULT_SETORES,
+    novoSetor: '',
+    novaPessoaNome: '',
+    novaPessoaSetor: '',
+  };
+
+  componentDidMount(){
+    try{
+      const savedP = localStorage.getItem('probsys_problems');
+      const savedU = localStorage.getItem('probsys_user');
+      const savedTeam = localStorage.getItem('probsys_team');
+      const savedSetores = localStorage.getItem('probsys_setores');
+      const next = {};
+      if(savedP) next.problems = JSON.parse(savedP);
+      if(savedU) next.currentUserId = savedU;
+      if(savedTeam) next.team = JSON.parse(savedTeam);
+      if(savedSetores) next.setores = JSON.parse(savedSetores);
+      if(Object.keys(next).length) this.setState(next);
+    }catch(e){}
+  }
+
+  persist(problems){ try{ localStorage.setItem('probsys_problems', JSON.stringify(problems)); }catch(e){} }
+  persistTo(key, val){ try{ localStorage.setItem(key, JSON.stringify(val)); }catch(e){} }
+
+  onNovoSetorChange = (e) => this.setState({novoSetor: e.target.value});
+  addSetor = () => {
+    const v = this.state.novoSetor.trim();
+    if(!v || this.state.setores.includes(v)) return;
+    const setores = [...this.state.setores, v];
+    this.persistTo('probsys_setores', setores);
+    this.setState({setores, novoSetor:''});
+  };
+  removeSetorClick = (e) => {
+    const setor = e.currentTarget.getAttribute('data-setor');
+    const setores = this.state.setores.filter(s=>s!==setor);
+    this.persistTo('probsys_setores', setores);
+    this.setState({setores});
+  };
+
+  onNovaPessoaNomeChange = (e) => this.setState({novaPessoaNome: e.target.value});
+  onNovaPessoaSetorChange = (e) => this.setState({novaPessoaSetor: e.target.value});
+  addPessoa = () => {
+    const nome = this.state.novaPessoaNome.trim();
+    const setor = this.state.novaPessoaSetor;
+    if(!nome || !setor) return;
+    const team = [...this.state.team, {id:'t'+Date.now(), nome, setor}];
+    this.persistTo('probsys_team', team);
+    this.setState({team, novaPessoaNome:'', novaPessoaSetor:''});
+  };
+  removePessoaClick = (e) => {
+    const id = e.currentTarget.getAttribute('data-id');
+    const person = this.state.team.find(t=>t.id===id);
+    const affected = this.state.problems.filter(p=>p.responsavelId===id && OPEN_STATUSES.includes(p.status));
+    if(affected.length>0){
+      const ok = window.confirm((person?person.nome:'Esta pessoa')+' é responsável por '+affected.length+' problema(s) em aberto. Remover mesmo assim? Esses problemas ficarão sem responsável definido.');
+      if(!ok) return;
+    }
+    const team = this.state.team.filter(t=>t.id!==id);
+    const problems = this.state.problems.map(p=>p.responsavelId===id?{...p, responsavelId:''}:p);
+    this.persistTo('probsys_team', team);
+    this.persist(problems);
+    this.setState({team, problems});
+  };
+  onPessoaSetorChange = (e) => {
+    const id = e.target.getAttribute('data-id'); const setor = e.target.value;
+    const team = this.state.team.map(t=>t.id===id?{...t,setor}:t);
+    this.persistTo('probsys_team', team);
+    this.setState({team});
+  };
+
+  onTabClick = (e) => this.setState({activeTab: e.currentTarget.getAttribute('data-tab')});
+  setBusca = (e) => this.setState({busca: e.target.value});
+  setSetorFilter = (e) => this.setState(s=>({filters:{...s.filters, setor:e.target.value}}));
+  setCriticidadeFilter = (e) => this.setState(s=>({filters:{...s.filters, criticidade:e.target.value}}));
+  setResponsavelFilter = (e) => this.setState(s=>({filters:{...s.filters, responsavel:e.target.value}}));
+  setCurrentUser = (e) => { const id=e.target.value; try{localStorage.setItem('probsys_user', id);}catch(err){} this.setState({currentUserId:id}); };
+  stopProp = (e) => e.stopPropagation();
+
+  openNew = () => this.setState({modal:{mode:'new', draft:{titulo:'', descricao:'', setor:'', criticidade:'', status:'Aberto', responsavelId:'', abertoPorId:this.state.currentUserId, prazo:''}}});
+  openEdit(p){ this.setState({modal:{mode:'edit', id:p.id, draft:{titulo:p.titulo, descricao:p.descricao, setor:p.setor, criticidade:p.criticidade, status:p.status, responsavelId:p.responsavelId, abertoPorId:p.abertoPorId, prazo:p.prazo}}, novoComentario:''}); }
+  openEditFromCard = (e) => { const id=e.currentTarget.getAttribute('data-id'); const p=this.state.problems.find(x=>x.id===id); if(p) this.openEdit(p); };
+  openEditFromRow = (e) => this.openEditFromCard(e);
+  closeModal = () => this.setState({modal:null, novoComentario:''});
+
+  setDraftField(field, value){ this.setState(s=>({modal:{...s.modal, draft:{...s.modal.draft, [field]:value}}})); }
+  onDraftTituloChange = (e) => this.setDraftField('titulo', e.target.value);
+  onDraftDescricaoChange = (e) => this.setDraftField('descricao', e.target.value);
+  onDraftSetorChange = (e) => this.setDraftField('setor', e.target.value);
+  onDraftCriticidadeChange = (e) => this.setDraftField('criticidade', e.target.value);
+  onDraftResponsavelChange = (e) => this.setDraftField('responsavelId', e.target.value);
+  onDraftAbertoPorChange = (e) => this.setDraftField('abertoPorId', e.target.value);
+  onDraftPrazoChange = (e) => this.setDraftField('prazo', e.target.value);
+  selectStatusPill = (e) => this.setDraftField('status', e.currentTarget.getAttribute('data-status'));
+
+  onQuickStatusChange = (e) => {
+    const id = e.target.getAttribute('data-id'); const val = e.target.value;
+    const problems = this.state.problems.map(p => p.id===id ? {...p, status:val} : p);
+    this.persist(problems); this.setState({problems});
+  };
+
+  onNovoComentarioChange = (e) => this.setState({novoComentario: e.target.value});
+  addComment = () => {
+    const texto = this.state.novoComentario.trim();
+    if(!texto || !this.state.modal) return;
+    const author = this.state.team.find(t=>t.id===this.state.currentUserId);
+    const todayIso = new Date().toISOString().slice(0,10);
+    const problems = this.state.problems.map(p => p.id===this.state.modal.id ? {...p, comentarios:[...p.comentarios, {autor: author?author.nome:'—', texto, data: todayIso}]} : p);
+    this.persist(problems); this.setState({problems, novoComentario:''});
+  };
+
+  saveDraft = () => {
+    const {modal} = this.state; if(!modal) return;
+    const d = modal.draft;
+    if(!d.titulo || !d.titulo.trim() || !d.setor || !d.criticidade || !d.responsavelId) return;
+    if(modal.mode==='new' && !d.abertoPorId) return;
+    let problems;
+    if(modal.mode==='new'){
+      const novo = {id:'p'+Date.now(), titulo:d.titulo.trim(), descricao:d.descricao||'', setor:d.setor, criticidade:d.criticidade, status:d.status||'Aberto', responsavelId:d.responsavelId, abertoPorId:d.abertoPorId, prazo:d.prazo||'', criadoEm:new Date().toISOString().slice(0,10), comentarios:[]};
+      problems = [novo, ...this.state.problems];
+    } else {
+      problems = this.state.problems.map(p => p.id===modal.id ? {...p, titulo:d.titulo.trim(), descricao:d.descricao, setor:d.setor, criticidade:d.criticidade, status:d.status, responsavelId:d.responsavelId, prazo:d.prazo} : p);
+    }
+    this.persist(problems);
+    this.setState({problems, modal:null, novoComentario:''});
+  };
+
+  enrich(p){
+    const crit = CRIT_STYLE[p.criticidade] || CRIT_STYLE['Baixa'];
+    const stat = STATUS_STYLE[p.status] || STATUS_STYLE['Aberto'];
+    const resp = this.state.team.find(t=>t.id===p.responsavelId);
+    const abertoPor = this.state.team.find(t=>t.id===p.abertoPorId);
+    const isOpen = OPEN_STATUSES.includes(p.status);
+    const vencido = isOpen && p.prazo && daysSince(p.prazo) > 0;
+    return {
+      ...p,
+      critBadgeStyle: 'background:'+crit.bg+';color:'+crit.color+';',
+      statusBadgeStyle: 'background:'+stat.bg+';color:'+stat.color+';',
+      responsavelNome: resp ? resp.nome : (p.responsavelId ? 'Pessoa removida' : 'Não atribuído'),
+      responsavelIniciais: resp ? initials(resp.nome) : '–',
+      abertoPorNome: abertoPor ? abertoPor.nome : (p.abertoPorId ? 'Pessoa removida' : '—'),
+      prazoFmt: fmtDate(p.prazo),
+      criadoFmt: fmtDate(p.criadoEm),
+      diasAberto: daysSince(p.criadoEm),
+      prazoStyle: vencido ? 'color:#dc2626;font-weight:700;' : '',
+    };
+  }
+
+  renderVals(){
+    const s = this.state;
+    const agingThreshold = this.props.aging_threshold_days ?? 14;
+    const showQuickStatus = this.props.show_quick_status ?? true;
+    const activeTab = s.activeTab || this.props.default_view || 'lista';
+    const q = s.busca.trim().toLowerCase();
+
+    let filtered = s.problems.filter(p =>
+      (s.filters.setor==='todos' || p.setor===s.filters.setor) &&
+      (s.filters.criticidade==='todos' || p.criticidade===s.filters.criticidade) &&
+      (s.filters.responsavel==='todos' || p.responsavelId===s.filters.responsavel) &&
+      (!q || p.titulo.toLowerCase().includes(q) || p.descricao.toLowerCase().includes(q))
+    ).map(p=>this.enrich(p));
+
+    const listaSorted = [...filtered].sort((a,b)=>(a.prazo||'9999').localeCompare(b.prazo||'9999')).map((p,idx)=>({...p, rowBg: idx%2===1 ? 'oklch(96% 0.006 258)' : 'transparent'}));
+
+    const allEnriched = s.problems.map(p=>this.enrich(p));
+    const openProblems = allEnriched.filter(p=>OPEN_STATUSES.includes(p.status));
+    const spark = (pred, color) => {
+      const counts = s.setores.map(setor => allEnriched.filter(p=>p.setor===setor && pred(p)).length);
+      const max = Math.max(1, ...counts);
+      return counts.map(c => ({style:'height:'+Math.max(4,Math.round(c/max*26))+'px;background:'+color+';opacity:'+(c>0?1:0.3)+';'}));
+    };
+    const kpis = [
+      {label:'Abertos', valor: allEnriched.filter(p=>p.status==='Aberto').length, colorStyle:'color:'+STATUS_STYLE['Aberto'].color+';', spark: spark(p=>p.status==='Aberto', STATUS_STYLE['Aberto'].color)},
+      {label:'Em andamento', valor: allEnriched.filter(p=>p.status==='Em andamento').length, colorStyle:'color:'+STATUS_STYLE['Em andamento'].color+';', spark: spark(p=>p.status==='Em andamento', STATUS_STYLE['Em andamento'].color)},
+      {label:'Aguardando terceiros', valor: allEnriched.filter(p=>p.status==='Aguardando terceiros').length, colorStyle:'color:'+STATUS_STYLE['Aguardando terceiros'].color+';', spark: spark(p=>p.status==='Aguardando terceiros', STATUS_STYLE['Aguardando terceiros'].color)},
+      {label:'Críticos em aberto', valor: allEnriched.filter(p=>p.criticidade==='Alta' && OPEN_STATUSES.includes(p.status)).length, colorStyle:'color:'+CRIT_STYLE['Alta'].color+';', spark: spark(p=>p.criticidade==='Alta' && OPEN_STATUSES.includes(p.status), CRIT_STYLE['Alta'].color)},
+      {label:'Resolvidos', valor: allEnriched.filter(p=>p.status==='Resolvido').length, colorStyle:'color:'+STATUS_STYLE['Resolvido'].color+';', spark: spark(p=>p.status==='Resolvido', STATUS_STYLE['Resolvido'].color)},
+    ];
+
+    const setorCounts = s.setores.map(setor => ({setor, count: openProblems.filter(p=>p.setor===setor).length}));
+    const maxSetor = Math.max(1, ...setorCounts.map(r=>r.count));
+    const porSetorRows = setorCounts.map(r => ({...r, barStyle: 'width:'+Math.round(r.count/maxSetor*100)+'%;background:oklch(46% 0.17 258);'}));
+
+    const critCounts = ['Alta','Média','Baixa'].map(criticidade => ({criticidade, count: openProblems.filter(p=>p.criticidade===criticidade).length}));
+    const maxCrit = Math.max(1, ...critCounts.map(r=>r.count));
+    const porCriticidadeRows = critCounts.map(r => ({...r, barStyle: 'width:'+Math.round(r.count/maxCrit*100)+'%;background:'+CRIT_STYLE[r.criticidade].color+';'}));
+
+    const antigos = openProblems.slice().sort((a,b)=>b.diasAberto-a.diasAberto).slice(0,5).map(p => ({
+      ...p,
+      diasLabel: p.diasAberto+' dia'+(p.diasAberto===1?'':'s')+' em aberto',
+      diasPillStyle: p.diasAberto>=agingThreshold ? 'background:oklch(94% 0.06 25);color:oklch(45% 0.17 25);' : 'background:oklch(95% 0.006 258);color:oklch(45% 0.02 258);',
+    }));
+
+    const modal = s.modal;
+    const draft = modal ? modal.draft : {};
+    const statusPillOptions = STATUSES.map(st => ({status: st, style: (draft.status===st ? 'background:oklch(46% 0.17 258);color:#fff;border-color:oklch(46% 0.17 258);' : 'background:#fff;color:oklch(35% 0.02 258);')}));
+    const modalProblem = modal && modal.mode==='edit' ? s.problems.find(p=>p.id===modal.id) : null;
+    const modalComentarios = modalProblem ? modalProblem.comentarios.map(c=>({...c, dataFmt: fmtDate(c.data)})).slice().reverse() : [];
+    const saveDisabled = !draft || !draft.titulo || !draft.titulo.trim() || !draft.setor || !draft.criticidade || !draft.responsavelId || (modal && modal.mode==='new' && !draft.abertoPorId);
+
+    const tabBase = 'padding:14px 2px;background:none;border:none;border-bottom:2px solid transparent;font-size:15px;font-weight:700;cursor:pointer;';
+    const tabOn = (on) => tabBase + (on ? 'color:oklch(46% 0.17 258);border-bottom-color:oklch(46% 0.17 258);' : 'color:oklch(52% 0.02 258);');
+
+    const pessoasConfig = s.team.map(t => ({...t, iniciais: initials(t.nome)}));
+
+    return {
+      teamList: s.team, setoresList: s.setores, criticidadesList: CRITICIDADES, statusList: STATUSES,
+      currentUserId: s.currentUserId, busca: s.busca, setBusca: this.setBusca, setCurrentUser: this.setCurrentUser, openNew: this.openNew,
+      onTabClick: this.onTabClick, isLista: activeTab==='lista', isDashboard: activeTab==='dashboard', isConfig: activeTab==='config',
+      tabListaStyle: tabOn(activeTab==='lista'), tabDashboardStyle: tabOn(activeTab==='dashboard'), tabConfigStyle: tabOn(activeTab==='config'),
+      showFilters: activeTab==='lista', filters: s.filters, setSetorFilter: this.setSetorFilter, setCriticidadeFilter: this.setCriticidadeFilter, setResponsavelFilter: this.setResponsavelFilter,
+      stopProp: this.stopProp,
+      setoresConfig: s.setores, novoSetor: s.novoSetor, onNovoSetorChange: this.onNovoSetorChange, addSetor: this.addSetor, removeSetorClick: this.removeSetorClick,
+      pessoasConfig, novaPessoaNome: s.novaPessoaNome, novaPessoaSetor: s.novaPessoaSetor, onNovaPessoaNomeChange: this.onNovaPessoaNomeChange, onNovaPessoaSetorChange: this.onNovaPessoaSetorChange, addPessoa: this.addPessoa, removePessoaClick: this.removePessoaClick, onPessoaSetorChange: this.onPessoaSetorChange,
+      filteredProblems: listaSorted, noResults: listaSorted.length===0, openEditFromRow: this.openEditFromRow,
+      kpis, porSetorRows, porCriticidadeRows, antigos,
+      modalOpen: !!modal, modalTitle: modal ? (modal.mode==='new' ? 'Novo problema' : 'Editar problema') : '',
+      modalIsNew: !!modal && modal.mode==='new', modalIsEdit: !!modal && modal.mode==='edit',
+      draftTitulo: draft.titulo||'', draftDescricao: draft.descricao||'', draftSetor: draft.setor||'', draftCriticidade: draft.criticidade||'', draftResponsavelId: draft.responsavelId||'', draftAbertoPorId: draft.abertoPorId||'', draftPrazo: draft.prazo||'',
+      modalAbertoPorNome: modalProblem ? ((s.team.find(t=>t.id===modalProblem.abertoPorId)||{}).nome || (modalProblem.abertoPorId ? 'Pessoa removida' : '—')) : '—',
+      modalCriadoFmt: modalProblem ? fmtDate(modalProblem.criadoEm) : '—',
+      modalComentarios, modalComentariosEmpty: modalComentarios.length===0, novoComentario: s.novoComentario, onNovoComentarioChange: this.onNovoComentarioChange, addComment: this.addComment,
+      onDraftTituloChange: this.onDraftTituloChange, onDraftDescricaoChange: this.onDraftDescricaoChange, onDraftSetorChange: this.onDraftSetorChange, onDraftCriticidadeChange: this.onDraftCriticidadeChange, onDraftResponsavelChange: this.onDraftResponsavelChange, onDraftAbertoPorChange: this.onDraftAbertoPorChange, onDraftPrazoChange: this.onDraftPrazoChange,
+      selectStatusPill: this.selectStatusPill, statusPillOptions,
+      closeModal: this.closeModal, saveDraft: this.saveDraft, saveDisabled,
+      saveButtonLabel: modal && modal.mode==='new' ? 'Criar problema' : 'Salvar alterações',
+      saveButtonStyle: 'padding:12px 22px;border-radius:10px;border:none;font-size:14px;font-weight:700;cursor:pointer;' + (saveDisabled ? 'background:oklch(90% 0.006 258);color:oklch(65% 0.015 258);' : 'background:oklch(46% 0.17 258);color:#fff;'),
+    };
+  }
+}
+
+</script>
+</body>
+</html>

@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Central de Problemas — Grupo GPS Mecanizada</title>
+  <meta name="description" content="Sistema de gestão de problemas operacionais do Grupo GPS Mecanizada.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Supabase SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body { margin: 0; font-family: 'Manrope', sans-serif; -webkit-font-smoothing: antialiased; background: oklch(96% 0.006 258); color: oklch(20% 0.012 258); }
+    select, input, textarea, button { font-family: 'Manrope', sans-serif; }
+    a { color: oklch(46% 0.17 258); text-decoration: none; }
+    a:hover { color: oklch(38% 0.17 258); }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+    #busca-problemas::placeholder { color: rgba(255,255,255,0.75); }
+    .hidden { display: none !important; }
+    .fade-in { animation: fadeIn 0.18s ease-out; }
+    /* Loading overlay */
+    #loading-overlay { position: fixed; inset: 0; background: rgba(255,255,255,0.85); display: flex; align-items: center; justify-content: center; z-index: 999; font-size: 16px; font-weight: 600; color: oklch(46% 0.17 258); }
+    #loading-overlay.hidden { display: none; }
+    /* Toast */
+    #toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: oklch(25% 0.01 258); color: #fff; padding: 12px 24px; border-radius: 12px; font-size: 14px; font-weight: 600; z-index: 1000; transition: opacity 0.3s; pointer-events: none; }
+    #toast.hidden { opacity: 0; }
+    /* Confirm delete modal */
+    #confirm-modal { position: fixed; inset: 0; background: rgba(15,23,42,0.5); display: flex; align-items: center; justify-content: center; z-index: 200; }
+    #confirm-modal.hidden { display: none; }
+    tr:hover td { background: oklch(93% 0.05 258) !important; }
+    select option { background: #fff; color: oklch(20% 0.012 258); }
+  </style>
+</head>
+<body>
+
+<!-- Loading -->
+<div id="loading-overlay">Carregando...</div>
+
+<!-- Toast -->
+<div id="toast" class="hidden"></div>
+
+<!-- Confirm delete -->
+<div id="confirm-modal" class="hidden">
+  <div style="background:#fff;border-radius:16px;padding:28px 32px;max-width:420px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.2);animation:fadeIn 0.15s ease-out;">
+    <div style="font-size:20px;font-weight:700;margin-bottom:10px;">Excluir problema?</div>
+    <div id="confirm-text" style="font-size:14px;color:oklch(45% 0.02 258);margin-bottom:24px;line-height:1.5;"></div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;">
+      <button id="confirm-cancel" style="padding:10px 20px;border-radius:10px;border:1px solid oklch(88% 0.006 258);background:#fff;font-size:14px;font-weight:700;cursor:pointer;">Cancelar</button>
+      <button id="confirm-ok" style="padding:10px 20px;border-radius:10px;border:none;background:#dc2626;color:#fff;font-size:14px;font-weight:700;cursor:pointer;">Sim, excluir</button>
+    </div>
+  </div>
+</div>
+
+<!-- App -->
+<div id="app">
+
+  <header style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:20px;padding:26px 40px;background:radial-gradient(ellipse at 30% 40%, oklch(58% 0.23 264) 0%, oklch(46% 0.24 265) 60%, oklch(40% 0.22 266) 100%);">
+    <div style="display:flex;align-items:baseline;gap:6px;flex-shrink:0;">
+      <span style="font-size:20px;font-weight:300;letter-spacing:0.04em;color:#fff;">GRUPO</span>
+      <span style="font-size:26px;font-weight:800;letter-spacing:0.01em;color:#fff;">GPS</span>
+      <span style="font-size:16px;font-weight:400;letter-spacing:0.03em;color:rgba(255,255,255,0.82);margin-left:2px;">Mecanizada</span>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:14px;">
+      <input id="busca-problemas" type="text" placeholder="Buscar problemas..." style="padding:11px 16px;border-radius:10px;border:1px solid rgba(255,255,255,0.3);background:rgba(255,255,255,0.14);font-size:14px;width:220px;color:#fff;" oninput="app.onBuscaChange(this.value)">
+      <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:rgba(255,255,255,0.85);">
+        <span>Você é</span>
+        <select id="current-user-select" style="padding:9px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.3);background:rgba(255,255,255,0.14);font-size:14px;font-weight:600;color:#fff;cursor:pointer;" onchange="app.setCurrentUser(this.value)"></select>
+      </div>
+      <button onclick="app.openNew()" style="padding:12px 22px;border-radius:10px;border:none;background:#fff;color:oklch(46% 0.24 265);font-size:14px;font-weight:800;cursor:pointer;">+ Novo problema</button>
+    </div>
+  </header>
+
+  <div style="padding:10px 40px;background:#fff;font-size:12px;letter-spacing:0.04em;text-transform:uppercase;color:oklch(52% 0.05 264);border-bottom:1px solid oklch(93% 0.008 258);">Central de Problemas</div>
+
+  <div style="padding:24px 40px 0;">
+    <div style="display:flex;gap:28px;border-bottom:1px solid oklch(84% 0.035 258);">
+      <button id="tab-lista" onclick="app.setTab('lista')" style="padding:14px 2px;background:none;border:none;border-bottom:2px solid oklch(46% 0.17 258);font-size:15px;font-weight:700;cursor:pointer;color:oklch(46% 0.17 258);">Lista</button>
+      <button id="tab-dashboard" onclick="app.setTab('dashboard')" style="padding:14px 2px;background:none;border:none;border-bottom:2px solid transparent;font-size:15px;font-weight:700;cursor:pointer;color:oklch(52% 0.02 258);">Dashboard</button>
+      <button id="tab-config" onclick="app.setTab('config')" style="padding:14px 2px;background:none;border:none;border-bottom:2px solid transparent;font-size:15px;font-weight:700;cursor:pointer;color:oklch(52% 0.02 258);">Configurações</button>
+    </div>
+
+    <!-- Filtros (lista) -->
+    <div id="filters-bar" style="display:flex;flex-wrap:wrap;gap:12px;margin:20px 0;">
+      <select id="filter-setor" onchange="app.setFilter('setor',this.value)" style="padding:10px 14px;border-radius:10px;border:1px solid oklch(88% 0.006 258);background:#fff;font-size:14px;min-width:170px;cursor:pointer;">
+        <option value="todos">Todos os setores</option>
+      </select>
+      <select id="filter-criticidade" onchange="app.setFilter('criticidade',this.value)" style="padding:10px 14px;border-radius:10px;border:1px solid oklch(88% 0.006 258);background:#fff;font-size:14px;min-width:170px;cursor:pointer;">
+        <option value="todos">Todas as criticidades</option>
+        <option value="Alta">Alta</option>
+        <option value="Média">Média</option>
+        <option value="Baixa">Baixa</option>
+      </select>
+      <select id="filter-responsavel" onchange="app.setFilter('responsavel',this.value)" style="padding:10px 14px;border-radius:10px;border:1px solid oklch(88% 0.006 258);background:#fff;font-size:14px;min-width:190px;cursor:pointer;">
+        <option value="todos">Todos os responsáveis</option>
+      </select>
+    </div>
+  </div>
+
+  <main style="padding:8px 40px 56px;">
+
+    <!-- ABA: LISTA -->
+    <div id="view-lista">
+      <div style="background:#fff;border-radius:16px;border:1px solid oklch(84% 0.035 258);overflow:hidden;">
+        <table style="width:100%;border-collapse:collapse;">
+          <thead>
+            <tr style="background:oklch(46% 0.17 258);">
+              <th style="text-align:left;padding:14px 16px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#fff;">Título</th>
+              <th style="text-align:left;padding:14px 16px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#fff;">Setor</th>
+              <th style="text-align:left;padding:14px 16px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#fff;">Criticidade</th>
+              <th style="text-align:left;padding:14px 16px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#fff;">Responsável</th>
+              <th style="text-align:left;padding:14px 16px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#fff;">Status</th>
+              <th style="text-align:left;padding:14px 16px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#fff;">Prazo ↑</th>
+              <th style="text-align:left;padding:14px 16px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#fff;">Aberto por</th>
+            </tr>
+          </thead>
+          <tbody id="lista-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ABA: DASHBOARD -->
+    <div id="view-dashboard" class="hidden">
+      <div id="kpi-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;"></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px;margin-top:24px;">
+        <div style="background:#fff;border-radius:16px;padding:22px;border:1px solid oklch(84% 0.035 258);">
+          <div style="font-weight:600;font-size:17px;margin-bottom:16px;">Problemas em aberto por setor</div>
+          <div id="bar-setor"></div>
+        </div>
+        <div style="background:#fff;border-radius:16px;padding:22px;border:1px solid oklch(84% 0.035 258);">
+          <div style="font-weight:600;font-size:17px;margin-bottom:16px;">Problemas em aberto por criticidade</div>
+          <div id="bar-criticidade"></div>
+        </div>
+      </div>
+      <div style="background:#fff;border-radius:16px;padding:22px;border:1px solid oklch(84% 0.035 258);margin-top:20px;">
+        <div style="font-weight:600;font-size:17px;margin-bottom:12px;">Mais antigos em aberto</div>
+        <div id="antigos-list"></div>
+      </div>
+    </div>
+
+    <!-- ABA: CONFIG -->
+    <div id="view-config" class="hidden">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px;">
+        <!-- Setores -->
+        <div style="background:#fff;border-radius:16px;padding:22px;border:1px solid oklch(84% 0.035 258);">
+          <div style="font-weight:600;font-size:17px;margin-bottom:16px;">Setores</div>
+          <div id="setores-chips" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;"></div>
+          <div style="display:flex;gap:8px;">
+            <input id="novo-setor-input" type="text" placeholder="Novo setor..." style="flex:1;padding:10px 14px;border-radius:10px;border:1px solid oklch(88% 0.006 258);font-size:14px;">
+            <button onclick="app.addSetor()" style="padding:10px 18px;border-radius:10px;border:none;background:oklch(46% 0.17 258);color:#fff;font-size:14px;font-weight:700;cursor:pointer;">Adicionar</button>
+          </div>
+        </div>
+        <!-- Pessoas -->
+        <div style="background:#fff;border-radius:16px;padding:22px;border:1px solid oklch(84% 0.035 258);">
+          <div style="font-weight:600;font-size:17px;margin-bottom:16px;">Pessoas</div>
+          <div id="pessoas-list"></div>
+          <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;">
+            <input id="nova-pessoa-nome" type="text" placeholder="Nome da pessoa..." style="flex:1;min-width:160px;padding:10px 14px;border-radius:10px;border:1px solid oklch(88% 0.006 258);font-size:14px;">
+            <select id="nova-pessoa-setor" style="padding:10px 12px;border-radius:10px;border:1px solid oklch(88% 0.006 258);font-size:14px;cursor:pointer;">
+              <option value="">Setor</option>
+            </select>
+            <button onclick="app.addPessoa()" style="padding:10px 18px;border-radius:10px;border:none;background:oklch(46% 0.17 258);color:#fff;font-size:14px;font-weight:700;cursor:pointer;">Adicionar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+</div>
+
+<!-- MODAL -->
+<div id="modal-overlay" class="hidden" onclick="app.closeModal()" style="position:fixed;inset:0;background:rgba(15,23,42,0.45);display:flex;align-items:center;justify-content:center;padding:24px;z-index:50;">
+  <div onclick="event.stopPropagation()" style="background:#fff;border-radius:20px;padding:32px;width:min(560px,100%);max-height:88vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.25);" class="fade-in">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;">
+      <h2 id="modal-title" style="margin:0;font-size:22px;font-weight:600;"></h2>
+      <button onclick="app.closeModal()" style="border:none;background:oklch(95% 0.005 258);width:32px;height:32px;border-radius:50%;font-size:16px;cursor:pointer;color:oklch(45% 0.02 258);">×</button>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:16px;">
+      <!-- Título -->
+      <div>
+        <label style="display:block;font-size:12px;font-weight:700;color:oklch(45% 0.02 258);margin-bottom:6px;">Título</label>
+        <input id="draft-titulo" type="text" placeholder="Ex: Falta de estoque de EPI" style="width:100%;padding:11px 14px;border-radius:10px;border:1px solid oklch(88% 0.006 258);font-size:14px;">
+      </div>
+      <!-- Descrição -->
+      <div>
+        <label style="display:block;font-size:12px;font-weight:700;color:oklch(45% 0.02 258);margin-bottom:6px;">Descrição</label>
+        <textarea id="draft-descricao" placeholder="Detalhe o problema..." rows="3" style="width:100%;padding:11px 14px;border-radius:10px;border:1px solid oklch(88% 0.006 258);font-size:14px;resize:vertical;font-family:'Manrope',sans-serif;"></textarea>
+      </div>
+      <!-- Setor + Criticidade -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div>
+          <label style="display:block;font-size:12px;font-weight:700;color:oklch(45% 0.02 258);margin-bottom:6px;">Setor</label>
+          <select id="draft-setor" style="width:100%;padding:11px 14px;border-radius:10px;border:1px solid oklch(88% 0.006 258);font-size:14px;cursor:pointer;"><option value="">Selecione</option></select>
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;font-weight:700;color:oklch(45% 0.02 258);margin-bottom:6px;">Criticidade</label>
+          <select id="draft-criticidade" style="width:100%;padding:11px 14px;border-radius:10px;border:1px solid oklch(88% 0.006 258);font-size:14px;cursor:pointer;">
+            <option value="">Selecione</option>
+            <option value="Baixa">Baixa</option>
+            <option value="Média">Média</option>
+            <option value="Alta">Alta</option>
+          </select>
+        </div>
+      </div>
+      <!-- Responsável + Prazo -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div>
+          <label style="display:block;font-size:12px;font-weight:700;color:oklch(45% 0.02 258);margin-bottom:6px;">Responsável</label>
+          <select id="draft-responsavel" style="width:100%;padding:11px 14px;border-radius:10px;border:1px solid oklch(88% 0.006 258);font-size:14px;cursor:pointer;"><option value="">Selecione</option></select>
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;font-weight:700;color:oklch(45% 0.02 258);margin-bottom:6px;">Prazo</label>
+          <input id="draft-prazo" type="date" style="width:100%;padding:11px 14px;border-radius:10px;border:1px solid oklch(88% 0.006 258);font-size:14px;">
+        </div>
+      </div>
+      <!-- Aberto por (só no novo) -->
+      <div id="field-aberto-por">
+        <label style="display:block;font-size:12px;font-weight:700;color:oklch(45% 0.02 258);margin-bottom:6px;">Aberto por</label>
+        <select id="draft-aberto-por" style="width:100%;padding:11px 14px;border-radius:10px;border:1px solid oklch(88% 0.006 258);font-size:14px;cursor:pointer;"><option value="">Selecione</option></select>
+      </div>
+      <!-- Info aberto por (só no edit) -->
+      <div id="info-aberto-por" class="hidden" style="display:flex;gap:20px;font-size:13px;color:oklch(52% 0.02 258);">
+        <span>Aberto por <strong id="info-autor" style="color:oklch(24% 0.015 258);"></strong></span>
+        <span>em <strong id="info-criado" style="color:oklch(24% 0.015 258);"></strong></span>
+      </div>
+      <!-- Status pills -->
+      <div>
+        <label style="display:block;font-size:12px;font-weight:700;color:oklch(45% 0.02 258);margin-bottom:8px;">Status</label>
+        <div id="status-pills" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+      </div>
+      <!-- Histórico (só no edit) -->
+      <div id="historico-section" class="hidden" style="border-top:1px solid oklch(93% 0.006 258);margin-top:6px;padding-top:16px;">
+        <div style="font-weight:600;font-size:16px;margin-bottom:12px;">Histórico</div>
+        <div id="comentarios-list"></div>
+        <div style="display:flex;gap:8px;margin-top:8px;">
+          <input id="novo-comentario" type="text" placeholder="Adicionar comentário..." style="flex:1;padding:10px 14px;border-radius:10px;border:1px solid oklch(88% 0.006 258);font-size:13px;">
+          <button onclick="app.addComment()" style="padding:10px 16px;border-radius:10px;border:none;background:oklch(95% 0.005 258);font-size:13px;font-weight:700;cursor:pointer;color:oklch(35% 0.02 258);">Enviar</button>
+        </div>
+      </div>
+      <!-- Ações -->
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;">
+        <div>
+          <button id="btn-delete" class="hidden" onclick="app.confirmDelete()" style="padding:10px 18px;border-radius:10px;border:none;background:oklch(95% 0.01 25);color:#dc2626;font-size:14px;font-weight:700;cursor:pointer;">🗑 Excluir</button>
+        </div>
+        <div style="display:flex;gap:10px;">
+          <button onclick="app.closeModal()" style="padding:12px 20px;border-radius:10px;border:1px solid oklch(88% 0.006 258);background:#fff;font-size:14px;font-weight:700;cursor:pointer;">Cancelar</button>
+          <button id="btn-save" onclick="app.saveDraft()" style="padding:12px 22px;border-radius:10px;border:none;font-size:14px;font-weight:700;cursor:pointer;background:oklch(46% 0.17 258);color:#fff;">Salvar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
