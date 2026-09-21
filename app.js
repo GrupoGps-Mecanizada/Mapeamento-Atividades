@@ -62,6 +62,7 @@ const state = {
   modal: null, // { mode: 'new'|'edit', id?, draft: {} }
   novoComentario: '',
   deleteTarget: null,
+  signedUrls: {}, // path -> URL assinada (miniaturas); limpa ao fechar o modal
 };
 
 // ── Supabase: carregar dados ────────────────────────────────
@@ -117,6 +118,46 @@ async function deleteSetorDB(nome) {
   if (error) throw error;
 }
 
+// ── Supabase Storage: anexos ────────────────────────────────
+const BUCKET = 'anexos-problemas';
+
+async function removeFromStorage(paths) {
+  if (!paths || !paths.length) return;
+  try { await sb.storage.from(BUCKET).remove(paths); } catch (_) { /* melhor esforço */ }
+}
+
+// Reduz fotos grandes no aparelho (lado maior 1600px, JPEG 0.8). Devolve null se não valer a pena.
+async function resizeImage(file) {
+  const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
+  const t = Anexos.computeResizeTarget(bmp.width, bmp.height, file.size);
+  if (!t.needsResize) { if (bmp.close) bmp.close(); return null; }
+  const canvas = document.createElement('canvas');
+  canvas.width = t.width; canvas.height = t.height;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, t.width, t.height);
+  ctx.drawImage(bmp, 0, 0, t.width, t.height);
+  if (bmp.close) bmp.close();
+  const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.8));
+  if (!blob || blob.size >= file.size) return null;
+  return { blob, nome: file.name.replace(/\.[^.]+$/, '') + '.jpg', tipo: 'image/jpeg' };
+}
+
+async function prepareUpload(file) {
+  const tipo = Anexos.resolveType(file);
+  if (/^image\/(jpeg|png|webp)$/.test(tipo)) {
+    try { const r = await resizeImage(file); if (r) return r; } catch (_) { /* usa o original */ }
+  }
+  return { blob: file, nome: file.name, tipo };
+}
+
+async function uploadAnexo(problemaId, pend) {
+  const prep = await prepareUpload(pend.file);
+  const path = Anexos.buildStoragePath(problemaId, crypto.randomUUID(), prep.nome);
+  const { error } = await sb.storage.from(BUCKET).upload(path, prep.blob, { contentType: prep.tipo, upsert: false });
+  if (error) throw error;
+  return { path, nome: prep.nome, tipo: prep.tipo, tamanho: prep.blob.size, enviado_em: new Date().toISOString() };
+}
+
 // ── Renderização principal ──────────────────────────────────
 const app = {
 
@@ -151,6 +192,7 @@ const app = {
       draft: {
         titulo: '', descricao: '', setor: '', criticidade: '', status: 'Aberto',
         responsavel_id: '', aberto_por_id: state.currentUserId, prazo: '', comentarios: [],
+        anexos: [], pendentes: [], removidos: [],
       }
     };
     renderModal();
@@ -166,6 +208,7 @@ const app = {
         titulo: p.titulo, descricao: p.descricao || '', setor: p.setor,
         criticidade: p.criticidade, status: p.status, responsavel_id: p.responsavel_id,
         aberto_por_id: p.aberto_por_id, prazo: p.prazo || '', comentarios: p.comentarios || [],
+        anexos: (p.anexos || []).slice(), pendentes: [], removidos: [],
       }
     };
     renderModal();
@@ -174,6 +217,8 @@ const app = {
   },
 
   closeModal() {
+    if (state.modal) (state.modal.draft.pendentes || []).forEach(p => { if (p.previewUrl) URL.revokeObjectURL(p.previewUrl); });
+    state.signedUrls = {};
     state.modal = null;
     document.getElementById('modal-overlay').classList.add('hidden');
     document.body.classList.remove('modal-open');
@@ -197,10 +242,28 @@ const app = {
       showToast('Selecione quem está abrindo o problema.');
       return;
     }
+    let uploaded = []; // anexos enviados neste salvamento (desfeitos se algo falhar)
     showLoading(true);
     try {
       const now = new Date().toISOString().slice(0, 10);
+      const problemaId = modal.mode === 'new' ? crypto.randomUUID() : modal.id;
+      const pend = d.pendentes || [];
+      if (pend.length) {
+        let done = 0;
+        showLoading(true, `Enviando anexos (0/${pend.length})...`);
+        const results = await Promise.allSettled(pend.map(async p => {
+          const meta = await uploadAnexo(problemaId, p);
+          done++;
+          showLoading(true, `Enviando anexos (${done}/${pend.length})...`);
+          return meta;
+        }));
+        uploaded = results.filter(r => r.status === 'fulfilled').map(r => r.value);
+        const failed = results.find(r => r.status === 'rejected');
+        if (failed) throw failed.reason;
+      }
+      showLoading(true, 'Salvando...');
       const payload = {
+        id: problemaId,
         titulo: d.titulo.trim(),
         descricao: d.descricao || '',
         setor: d.setor,
@@ -210,26 +273,68 @@ const app = {
         aberto_por_id: d.aberto_por_id,
         prazo: d.prazo || null,
         comentarios: d.comentarios || [],
+        anexos: (d.anexos || []).concat(uploaded),
       };
       if (modal.mode === 'new') {
-        payload.id = crypto.randomUUID();
         payload.criado_em = now;
         await upsertProblema(payload);
         state.problems.unshift(payload);
       } else {
-        payload.id = modal.id;
         await upsertProblema(payload);
         const idx = state.problems.findIndex(p => p.id === modal.id);
         if (idx >= 0) state.problems[idx] = { ...state.problems[idx], ...payload };
       }
+      uploaded = [];                        // gravado: nada a desfazer
+      await removeFromStorage(d.removidos); // arquivos removidos pelo usuário (melhor esforço)
       app.closeModal();
       render();
       showToast(modal.mode === 'new' ? 'Problema criado!' : 'Problema atualizado!');
     } catch (e) {
+      await removeFromStorage(uploaded.map(u => u.path)); // desfaz o lote enviado
       showToast('Erro ao salvar: ' + e.message, 5000);
     } finally {
       showLoading(false);
     }
+  },
+
+  // ── Anexos ────────────────────────────────────────────────
+  onFilesSelected(input) {
+    if (!state.modal) return;
+    const d = state.modal.draft;
+    const files = Array.from(input.files || []);
+    input.value = '';
+    const { accepted, rejected } = Anexos.validateFiles(files, d.anexos.length + d.pendentes.length);
+    accepted.forEach(f => {
+      const tipo = Anexos.resolveType(f);
+      d.pendentes.push({
+        tempId: crypto.randomUUID(), file: f, nome: f.name, tipo, tamanho: f.size,
+        previewUrl: Anexos.isImage(tipo) ? URL.createObjectURL(f) : '',
+      });
+    });
+    if (rejected.length) showToast(rejected.map(r => `${r.name}: ${r.reason}`).join(' • '), 6000);
+    renderAnexos();
+  },
+
+  removeAnexo(i) {
+    const d = state.modal.draft;
+    const [a] = d.anexos.splice(i, 1);
+    if (a) d.removidos.push(a.path);
+    renderAnexos();
+  },
+
+  removePendente(i) {
+    const [p] = state.modal.draft.pendentes.splice(i, 1);
+    if (p && p.previewUrl) URL.revokeObjectURL(p.previewUrl);
+    renderAnexos();
+  },
+
+  async openAnexo(i) {
+    const a = state.modal.draft.anexos[i];
+    if (!a) return;
+    const w = window.open('', '_blank'); // abre já, dentro do toque, para o navegador não bloquear
+    const { data, error } = await sb.storage.from(BUCKET).createSignedUrl(a.path, 3600);
+    if (error || !data) { if (w) w.close(); showToast('Não foi possível abrir o arquivo.'); return; }
+    if (w) { w.opener = null; w.location.href = data.signedUrl; } else { window.location.href = data.signedUrl; }
   },
 
   addComment() {
@@ -262,9 +367,11 @@ const app = {
     const id = state.deleteTarget;
     if (!id) return;
     document.getElementById('confirm-modal').classList.add('hidden');
+    const paths = ((state.problems.find(p => p.id === id) || {}).anexos || []).map(a => a.path);
     showLoading(true);
     try {
       await deleteProblemaDB(id);
+      await removeFromStorage(paths);
       state.problems = state.problems.filter(p => p.id !== id);
       app.closeModal();
       render();
@@ -445,7 +552,7 @@ function renderLista() {
   }
   tbody.innerHTML = filtered.map(p => `
     <tr class="row" onclick="app.openEdit(state.problems.find(x=>x.id==='${esc(p.id)}'))">
-      <td class="c-titulo">${esc(p.titulo)}</td>
+      <td class="c-titulo">${esc(p.titulo)}${(p.anexos || []).length ? `<span class="clip" title="${p.anexos.length} anexo(s)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.4 11.6l-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5"/></svg>${p.anexos.length}</span>` : ''}</td>
       <td class="c-setor" data-label="Setor">${esc(p.setor)}</td>
       <td class="c-crit"><span class="badge ${p.critCls}">${esc(p.criticidade)}</span></td>
       <td class="c-resp"><div class="resp"><span class="avatar">${esc(p.responsavelIniciais)}</span><span>${esc(p.responsavelNome)}</span></div></td>
@@ -582,6 +689,9 @@ function renderModal() {
   // Status pills
   renderStatusPills();
 
+  // Anexos
+  renderAnexos();
+
   // Histórico
   document.getElementById('historico-section').classList.toggle('hidden', isNew);
   if (isEdit) { renderComentarios(); renderComentarioAutor(); }
@@ -606,6 +716,41 @@ function renderStatusPills() {
     const active = modal.draft.status === st;
     return `<button type="button" class="pill${active ? ' active' : ''}" onclick="app.setDraftStatus('${esc(st)}')">${esc(st)}</button>`;
   }).join('');
+}
+
+function renderAnexos() {
+  const { modal } = state;
+  if (!modal) return;
+  const d = modal.draft;
+  const total = d.anexos.length + d.pendentes.length;
+  document.getElementById('anexos-count').innerHTML = total ? `<span class="muted">(${total}/${Anexos.MAX_FILES})</span>` : '';
+  const item = (thumb, nome, meta, actions) => `
+    <div class="anexo">
+      <div class="anexo-thumb">${thumb}</div>
+      <div class="anexo-info"><div class="anexo-nome" title="${esc(nome)}">${esc(nome)}</div><div class="anexo-meta">${meta}</div></div>
+      <div class="anexo-actions">${actions}</div>
+    </div>`;
+  const saved = d.anexos.map((a, i) => item(
+    Anexos.isImage(a.tipo) ? `<img data-path="${esc(a.path)}" alt="">` : esc(Anexos.typeLabel(a.tipo)),
+    a.nome, `${esc(Anexos.typeLabel(a.tipo))} · ${Anexos.formatBytes(a.tamanho)}`,
+    `<button type="button" class="btn btn-secondary btn-sm" onclick="app.openAnexo(${i})">Abrir</button>
+     <button type="button" class="btn btn-danger-soft btn-sm" onclick="app.removeAnexo(${i})">Remover</button>`));
+  const pend = d.pendentes.map((p, i) => item(
+    p.previewUrl ? `<img src="${p.previewUrl}" alt="">` : esc(Anexos.typeLabel(p.tipo)),
+    p.nome, `${esc(Anexos.typeLabel(p.tipo))} · ${Anexos.formatBytes(p.tamanho)} · será enviado ao salvar`,
+    `<button type="button" class="btn btn-danger-soft btn-sm" onclick="app.removePendente(${i})">Remover</button>`));
+  document.getElementById('anexos-list').innerHTML = saved.concat(pend).join('');
+  hydrateThumbs();
+}
+
+async function hydrateThumbs() {
+  const imgs = Array.from(document.querySelectorAll('#anexos-list img[data-path]'));
+  const need = imgs.map(i => i.dataset.path).filter(p => !state.signedUrls[p]);
+  if (need.length) {
+    const { data } = await sb.storage.from(BUCKET).createSignedUrls(need, 3600);
+    (data || []).forEach(r => { if (r.signedUrl) state.signedUrls[r.path] = r.signedUrl; });
+  }
+  imgs.forEach(i => { const u = state.signedUrls[i.dataset.path]; if (u) i.src = u; });
 }
 
 function renderComentarios() {
@@ -635,4 +780,5 @@ document.getElementById('confirm-cancel').onclick = () => {
 document.getElementById('confirm-ok').onclick = () => app.doDelete();
 
 // ── Init ────────────────────────────────────────────────────
+document.getElementById('anexos-input').accept = Anexos.ACCEPT;
 loadAll();
