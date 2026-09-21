@@ -123,7 +123,7 @@ test('typeLabel e isImage', () => {
 
 - [ ] **Step 2: Rodar e ver falhar**
 
-Run: `node --test tests/`
+Run: `node --test`
 Expected: FAIL com `Cannot find module '../anexos.js'`.
 
 - [ ] **Step 3: Implementar `anexos.js`**
@@ -231,7 +231,7 @@ Expected: FAIL com `Cannot find module '../anexos.js'`.
 
 - [ ] **Step 4: Rodar e ver passar**
 
-Run: `node --test tests/`
+Run: `node --test`
 Expected: todos os testes PASS (`# fail 0`).
 
 - [ ] **Step 5: Commit**
@@ -952,7 +952,7 @@ Em `renderLista`, no `c-titulo`, acrescentar depois do título:
 ${(p.anexos || []).length ? `<span class="clip" title="${p.anexos.length} anexo(s)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.4 11.6l-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5"/></svg>${p.anexos.length}</span>` : ''}
 ```
 
-- [ ] **Step 7: Verificar** — `node --check app.js`; `node --test tests/`; E2E na Task 8.
+- [ ] **Step 7: Verificar** — `node --check app.js`; `node --test`; E2E na Task 8.
 
 - [ ] **Step 8: Commit**
 
@@ -970,7 +970,7 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 **Files:**
 - Modify: `README.md`
 
-- [ ] **Step 1:** Trocar o título para `# MAPEAMENTO DE ATIVIDADES — Grupo GPS Mecanizada`; na lista de funcionalidades acrescentar `📎 **Anexos** de imagens e documentos (até 10 MB, máx. 10 por problema)` e `📱 **Interface responsiva** para celular`; remover menção a "Você é" se existir; em "Estrutura do banco" acrescentar `problemas … anexos (JSONB)` e o bucket `anexos-problemas` (privado, 10 MB); acrescentar seção "Testes" com `node --test tests/`; acrescentar nota de que o envio de anexos não exige login (mesmo nível de exposição das tabelas) e que a migração está em `supabase/migrations/`.
+- [ ] **Step 1:** Trocar o título para `# MAPEAMENTO DE ATIVIDADES — Grupo GPS Mecanizada`; na lista de funcionalidades acrescentar `📎 **Anexos** de imagens e documentos (até 10 MB, máx. 10 por problema)` e `📱 **Interface responsiva** para celular`; remover menção a "Você é" se existir; em "Estrutura do banco" acrescentar `problemas … anexos (JSONB)` e o bucket `anexos-problemas` (privado, 10 MB); acrescentar seção "Testes" com `node --test`; acrescentar nota de que o envio de anexos não exige login (mesmo nível de exposição das tabelas) e que a migração está em `supabase/migrations/`.
 - [ ] **Step 2: Commit** `docs: atualiza README (nome, anexos, testes)`.
 
 ---
@@ -983,5 +983,5 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 - [ ] **Step 2: Layout** — em 360, 390, 768 e 1280 de largura: capturar Lista, Dashboard, Configurações e o modal (novo e edição). Para cada largura, checar `scrollWidth <= innerWidth` (sem rolagem horizontal) e que o botão "+ Novo problema" está visível e clicável. Ler as capturas e corrigir qualquer problema encontrado (novo commit `fix:`).
 - [ ] **Step 3: E2E dos anexos no banco real** — via UI: abrir "+ Novo problema", preencher os obrigatórios com título `ZZ TESTE ANEXOS`, anexar `teste.pdf` (pequeno) e `foto.png` (gerada, > 1600px para exercitar o redimensionamento), tentar anexar `virus.exe` (deve ser recusado com aviso) e um arquivo de 11 MB (recusado); salvar; reabrir o problema, conferir 2 anexos, miniatura da imagem carregada e "Abrir" retornando URL assinada válida (HTTP 200 via `fetch`); remover 1 anexo e salvar; conferir no storage (`execute_sql` em `storage.objects where bucket_id='anexos-problemas'`) que o removido sumiu; excluir o problema pela UI e conferir que o storage ficou vazio e o problema não existe mais. Ao final, garantir por SQL que não sobrou nenhum objeto nem linha `ZZ TESTE ANEXOS`.
 - [ ] **Step 4: Regressão** — abrir um problema existente (sem anexos), editar, salvar e conferir que grava (`anexos = []`); comentar escolhendo autor; recarregar e conferir que o autor foi lembrado.
-- [ ] **Step 5: Testes e sintaxe** — `node --test tests/` e `node --check app.js` sem falhas. `git status` só com `.thumbnail` não versionado.
+- [ ] **Step 5: Testes e sintaxe** — `node --test` e `node --check app.js` sem falhas. `git status` só com `.thumbnail` não versionado.
 - [ ] **Step 6: Entrega** — resumir ao usuário o que mudou, o que foi verificado (e o que não foi), o avisos de exposição dos anexos e a pergunta de onde o app é publicado; **pedir confirmação antes de `git push`** (branch `mapeamento-de-atividades`) e perguntar se quer merge em `master`.
