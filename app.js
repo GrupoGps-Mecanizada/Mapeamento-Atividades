@@ -155,6 +155,7 @@ const app = {
     };
     renderModal();
     document.getElementById('modal-overlay').classList.remove('hidden');
+    document.body.classList.add('modal-open');
   },
 
   openEdit(p) {
@@ -169,11 +170,13 @@ const app = {
     };
     renderModal();
     document.getElementById('modal-overlay').classList.remove('hidden');
+    document.body.classList.add('modal-open');
   },
 
   closeModal() {
     state.modal = null;
     document.getElementById('modal-overlay').classList.add('hidden');
+    document.body.classList.remove('modal-open');
   },
 
   setDraftStatus(status) {

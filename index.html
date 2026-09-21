@@ -152,6 +152,68 @@
     .confirm-title{font-size:20px;font-weight:700;margin-bottom:10px}
     .confirm-text{font-size:14px;color:var(--text-2);margin-bottom:24px;line-height:1.5}
     .confirm-actions{display:flex;justify-content:flex-end;gap:10px}
+
+    /* ── Celular (≤ 768px) ─────────────────────────────── */
+    @media (max-width:768px){
+      body{font-size:15px}
+      .app-header{padding:14px 16px;gap:12px}
+      .header-tools{width:100%}
+      .search{width:100%}
+      .system-bar{padding:10px 16px}
+      .wrap{padding:16px 16px 0}
+      main{padding:8px 16px 104px}
+      #btn-new{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom));z-index:40;min-height:52px;padding:0 22px;border-radius:999px;background:var(--brand);color:#fff;box-shadow:0 6px 18px rgba(15,23,42,.35);border:2px solid #fff}
+      #toast{bottom:calc(88px + env(safe-area-inset-bottom))}
+
+      .input,.select,.textarea{font-size:16px;min-height:44px}
+      .btn,.btn-sm{min-height:44px}
+      .icon-btn{width:44px;height:44px}
+      .round-btn{width:32px;height:32px;position:relative}
+      .round-btn::after{content:"";position:absolute;inset:-6px} /* área de toque de 44px */
+      .pill{min-height:40px}
+      .tabs{gap:22px}
+      .tab{min-height:44px}
+      .filters{flex-direction:column;margin:16px 0}
+      .filters .select{width:100%;min-width:0}
+
+      .table-card{border:0;background:transparent;overflow:visible}
+      .table thead{display:none}
+      .table,.table tbody{display:block}
+      .table tr.row{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:14px 16px;margin-bottom:10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius)}
+      .table tr.row:nth-child(even){background:var(--surface)}
+      .table tr.empty{display:block;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius)}
+      .table td{display:block;padding:0;border:0;white-space:normal}
+      .table td.c-setor,.table td.c-resp,.table td.c-prazo,.table td.c-aberto{white-space:normal}
+      .table td.c-titulo{order:0;flex:1 0 100%;font-size:15px!important}
+      .table td.c-crit{order:1}
+      .table td.c-status{order:2}
+      .table td.c-resp{order:3;flex:1 0 100%}
+      .table td.c-setor{order:4}
+      .table td.c-prazo{order:5}
+      .table td.c-aberto{order:6}
+      .table td[data-label]::before{content:attr(data-label) ": ";color:var(--text-2);font-weight:600}
+      .table td.c-prazo.vencido::before{color:var(--danger)}
+
+      .kpi-grid{grid-template-columns:repeat(2,1fr);gap:12px}
+      .kpi{padding:16px}
+      .kpi-value{font-size:28px}
+      .bar-label{width:84px}
+      .old-item{align-items:flex-start;flex-direction:column}
+      .card-pad{padding:18px}
+      .person-row{flex-wrap:wrap}
+      .person-row .name{flex:1 0 calc(100% - 100px)}
+      .person-row .select{min-height:44px}
+      .inline-form .select,.inline-form .btn{width:100%}
+
+      .modal-overlay{padding:0;align-items:stretch}
+      .modal{width:100%;max-height:none;height:100vh;height:100dvh;border-radius:0}
+      .modal-head{padding:16px}
+      .modal-body{padding:4px 16px 16px}
+      .modal-actions{padding:12px 16px calc(12px + env(safe-area-inset-bottom));border-radius:0}
+      .form-row{grid-template-columns:1fr}
+      .confirm-box{padding:22px}
+      .confirm-actions .btn{flex:1}
+    }
   </style>
 </head>
 <body>
