@@ -12,18 +12,13 @@ const CRITICIDADES = ['Baixa', 'Média', 'Alta'];
 const STATUSES = ['Aberto', 'Em andamento', 'Aguardando terceiros', 'Resolvido', 'Cancelado'];
 const OPEN_STATUSES = ['Aberto', 'Em andamento', 'Aguardando terceiros'];
 
-const CRIT_STYLE = {
-  'Baixa': { bg: 'oklch(94% 0.05 155)', color: 'oklch(38% 0.13 155)' },
-  'Média': { bg: 'oklch(95% 0.06 80)',  color: 'oklch(42% 0.14 70)'  },
-  'Alta':  { bg: 'oklch(94% 0.06 25)',  color: 'oklch(45% 0.17 25)'  },
-};
-const STATUS_STYLE = {
-  'Aberto':              { bg: 'oklch(93% 0.008 258)', color: 'oklch(40% 0.02 258)'  },
-  'Em andamento':        { bg: 'oklch(93% 0.06 258)',  color: 'oklch(45% 0.17 258)'  },
-  'Aguardando terceiros':{ bg: 'oklch(94% 0.05 300)',  color: 'oklch(45% 0.14 300)'  },
-  'Resolvido':           { bg: 'oklch(94% 0.05 155)',  color: 'oklch(38% 0.13 155)'  },
-  'Cancelado':           { bg: 'oklch(93% 0.006 258)', color: 'oklch(55% 0.01 258)'  },
-};
+// As cores vivem no CSS (variáveis em :root); aqui só se escolhe a classe.
+function slug(s) {
+  return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+const critClass = c => 'crit-' + slug(c);
+const statusClass = s => 'st-' + slug(s);
+const fgVar = (prefix, value) => `var(--${prefix}-${slug(value)}-fg)`; // prefix: 'st' | 'crit'
 
 // ── Helpers ─────────────────────────────────────────────────
 function initials(nome) {
@@ -50,7 +45,8 @@ function showToast(msg, duration = 3000) {
   clearTimeout(t._timer);
   t._timer = setTimeout(() => t.classList.add('hidden'), duration);
 }
-function showLoading(v) {
+function showLoading(v, msg = 'Carregando...') {
+  document.getElementById('loading-text').textContent = msg;
   document.getElementById('loading-overlay').classList.toggle('hidden', !v);
 }
 
@@ -369,23 +365,21 @@ const app = {
 
 // ── Render helpers ─────────────────────────────────────────
 function getEnriched(p) {
-  const crit = CRIT_STYLE[p.criticidade] || CRIT_STYLE['Baixa'];
-  const stat = STATUS_STYLE[p.status] || STATUS_STYLE['Aberto'];
   const resp = state.pessoas.find(t => t.id === p.responsavel_id);
   const abertoPor = state.pessoas.find(t => t.id === p.aberto_por_id);
   const isOpen = OPEN_STATUSES.includes(p.status);
   const vencido = isOpen && p.prazo && daysSince(p.prazo) > 0;
   return {
     ...p,
-    critBadgeStyle: `background:${crit.bg};color:${crit.color};`,
-    statusBadgeStyle: `background:${stat.bg};color:${stat.color};`,
+    critCls: critClass(p.criticidade),
+    statusCls: statusClass(p.status),
+    vencido,
     responsavelNome: resp ? resp.nome : (p.responsavel_id ? 'Pessoa removida' : 'Não atribuído'),
     responsavelIniciais: resp ? initials(resp.nome) : '–',
     abertoPorNome: abertoPor ? abertoPor.nome : (p.aberto_por_id ? 'Pessoa removida' : '—'),
     prazoFmt: fmtDate(p.prazo),
     criadoFmt: fmtDate(p.criado_em),
     diasAberto: daysSince(p.criado_em),
-    prazoStyle: vencido ? 'color:#dc2626;font-weight:700;' : '',
   };
 }
 
@@ -414,15 +408,10 @@ function render() {
 
 function renderTabs() {
   const { activeTab } = state;
-  const tabBase = 'padding:14px 2px;background:none;border:none;border-bottom:2px solid transparent;font-size:15px;font-weight:700;cursor:pointer;';
-  const tabOn  = tabBase + 'color:oklch(46% 0.17 258);border-bottom-color:oklch(46% 0.17 258);';
-  const tabOff = tabBase + 'color:oklch(52% 0.02 258);';
-  document.getElementById('tab-lista').style.cssText = activeTab === 'lista' ? tabOn : tabOff;
-  document.getElementById('tab-dashboard').style.cssText = activeTab === 'dashboard' ? tabOn : tabOff;
-  document.getElementById('tab-config').style.cssText = activeTab === 'config' ? tabOn : tabOff;
-  document.getElementById('view-lista').classList.toggle('hidden', activeTab !== 'lista');
-  document.getElementById('view-dashboard').classList.toggle('hidden', activeTab !== 'dashboard');
-  document.getElementById('view-config').classList.toggle('hidden', activeTab !== 'config');
+  ['lista', 'dashboard', 'config'].forEach(t => {
+    document.getElementById('tab-' + t).classList.toggle('active', activeTab === t);
+    document.getElementById('view-' + t).classList.toggle('hidden', activeTab !== t);
+  });
   document.getElementById('filters-bar').classList.toggle('hidden', activeTab !== 'lista');
 }
 
@@ -452,27 +441,19 @@ function renderLista() {
   const filtered = getFiltered();
   const tbody = document.getElementById('lista-tbody');
   if (filtered.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="7" style="padding:60px;text-align:center;font-size:14px;color:oklch(58% 0.015 258);">Nenhum problema encontrado com esses filtros.</td></tr>`;
+    tbody.innerHTML = `<tr class="empty"><td colspan="7" style="padding:60px;text-align:center;color:var(--text-2);">Nenhum problema encontrado com esses filtros.</td></tr>`;
     return;
   }
-  tbody.innerHTML = filtered.map((p, idx) => {
-    const bg = idx % 2 === 1 ? 'oklch(96% 0.006 258)' : 'transparent';
-    return `
-    <tr onclick="app.openEdit(state.problems.find(x=>x.id==='${esc(p.id)}'))" style="border-bottom:1px solid oklch(90% 0.02 258);cursor:pointer;background:${bg};">
-      <td style="padding:14px 16px;font-size:14px;font-weight:700;">${esc(p.titulo)}</td>
-      <td style="padding:14px 16px;font-size:13px;color:oklch(45% 0.02 258);">${esc(p.setor)}</td>
-      <td style="padding:14px 16px;"><span style="border-radius:999px;padding:4px 10px;font-size:11px;font-weight:700;${p.critBadgeStyle}">${esc(p.criticidade)}</span></td>
-      <td style="padding:14px 16px;">
-        <div style="display:flex;align-items:center;gap:8px;">
-          <span style="width:24px;height:24px;border-radius:50%;background:oklch(90% 0.06 258);color:oklch(40% 0.17 258);font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${esc(p.responsavelIniciais)}</span>
-          <span style="font-size:13px;font-weight:600;">${esc(p.responsavelNome)}</span>
-        </div>
-      </td>
-      <td style="padding:14px 16px;"><span style="border-radius:999px;padding:4px 10px;font-size:11px;font-weight:700;${p.statusBadgeStyle}">${esc(p.status)}</span></td>
-      <td style="padding:14px 16px;font-size:13px;font-weight:700;${p.prazoStyle}">${p.prazoFmt}</td>
-      <td style="padding:14px 16px;font-size:13px;color:oklch(52% 0.02 258);">${esc(p.abertoPorNome)}</td>
-    </tr>`;
-  }).join('');
+  tbody.innerHTML = filtered.map(p => `
+    <tr class="row" onclick="app.openEdit(state.problems.find(x=>x.id==='${esc(p.id)}'))">
+      <td class="c-titulo">${esc(p.titulo)}</td>
+      <td class="c-setor" data-label="Setor">${esc(p.setor)}</td>
+      <td class="c-crit"><span class="badge ${p.critCls}">${esc(p.criticidade)}</span></td>
+      <td class="c-resp"><div class="resp"><span class="avatar">${esc(p.responsavelIniciais)}</span><span>${esc(p.responsavelNome)}</span></div></td>
+      <td class="c-status"><span class="badge ${p.statusCls}">${esc(p.status)}</span></td>
+      <td class="c-prazo${p.vencido ? ' vencido' : ''}" data-label="Prazo">${p.prazoFmt}</td>
+      <td class="c-aberto" data-label="Aberto por">${esc(p.abertoPorNome)}</td>
+    </tr>`).join('');
 }
 
 function renderDashboard() {
@@ -485,71 +466,59 @@ function renderDashboard() {
     return counts.map(c => `<div style="width:6px;border-radius:2px;height:${Math.max(4, Math.round(c / max * 26))}px;background:${color};opacity:${c > 0 ? 1 : 0.3};flex-shrink:0;"></div>`).join('');
   };
 
-  const kpis = [
-    { label: 'Abertos',              valor: allEnriched.filter(p => p.status === 'Aberto').length,              colorStyle: `color:${STATUS_STYLE['Aberto'].color};`,              spark: spark(p => p.status === 'Aberto', STATUS_STYLE['Aberto'].color) },
-    { label: 'Em andamento',         valor: allEnriched.filter(p => p.status === 'Em andamento').length,        colorStyle: `color:${STATUS_STYLE['Em andamento'].color};`,        spark: spark(p => p.status === 'Em andamento', STATUS_STYLE['Em andamento'].color) },
-    { label: 'Aguardando terceiros', valor: allEnriched.filter(p => p.status === 'Aguardando terceiros').length,colorStyle: `color:${STATUS_STYLE['Aguardando terceiros'].color};`,spark: spark(p => p.status === 'Aguardando terceiros', STATUS_STYLE['Aguardando terceiros'].color) },
-    { label: 'Críticos em aberto',   valor: allEnriched.filter(p => p.criticidade === 'Alta' && OPEN_STATUSES.includes(p.status)).length, colorStyle: `color:${CRIT_STYLE['Alta'].color};`, spark: spark(p => p.criticidade === 'Alta' && OPEN_STATUSES.includes(p.status), CRIT_STYLE['Alta'].color) },
-    { label: 'Resolvidos',           valor: allEnriched.filter(p => p.status === 'Resolvido').length,           colorStyle: `color:${STATUS_STYLE['Resolvido'].color};`,           spark: spark(p => p.status === 'Resolvido', STATUS_STYLE['Resolvido'].color) },
+  const kpiDefs = [
+    { label: 'Abertos',              color: fgVar('st', 'Aberto'),               pred: p => p.status === 'Aberto' },
+    { label: 'Em andamento',         color: fgVar('st', 'Em andamento'),         pred: p => p.status === 'Em andamento' },
+    { label: 'Aguardando terceiros', color: fgVar('st', 'Aguardando terceiros'), pred: p => p.status === 'Aguardando terceiros' },
+    { label: 'Críticos em aberto',   color: fgVar('crit', 'Alta'),               pred: p => p.criticidade === 'Alta' && OPEN_STATUSES.includes(p.status) },
+    { label: 'Resolvidos',           color: fgVar('st', 'Resolvido'),            pred: p => p.status === 'Resolvido' },
   ];
 
-  document.getElementById('kpi-grid').innerHTML = kpis.map(k => `
-    <div style="background:#fff;border-radius:16px;padding:20px;border:1px solid oklch(84% 0.035 258);">
-      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:oklch(52% 0.02 258);">${esc(k.label)}</div>
-      <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-top:8px;">
-        <div style="font-size:34px;font-weight:800;${k.colorStyle}">${k.valor}</div>
-        <div style="display:flex;align-items:flex-end;gap:3px;height:30px;border-bottom:1px solid oklch(90% 0.02 258);padding-bottom:2px;">${k.spark}</div>
+  document.getElementById('kpi-grid').innerHTML = kpiDefs.map(k => `
+    <div class="card kpi">
+      <div class="kpi-label">${esc(k.label)}</div>
+      <div class="kpi-body">
+        <div class="kpi-value" style="color:${k.color};">${allEnriched.filter(k.pred).length}</div>
+        <div class="kpi-spark">${spark(k.pred, k.color)}</div>
       </div>
-      <div style="font-size:10px;color:oklch(60% 0.02 258);margin-top:6px;">por setor</div>
+      <div class="kpi-foot">por setor</div>
     </div>`).join('');
+
+  const barRow = (label, count, max, color) => `
+    <div class="bar-row">
+      <span class="bar-label">${esc(label)}</span>
+      <div class="bar-track"><div class="bar-fill" style="width:${Math.round(count / max * 100)}%;background:${color};"></div></div>
+      <span class="bar-count">${count}</span>
+    </div>`;
 
   const setorCounts = state.setores.map(s => ({ setor: s.nome, count: openProblems.filter(p => p.setor === s.nome).length }));
   const maxSetor = Math.max(1, ...setorCounts.map(r => r.count));
-  document.getElementById('bar-setor').innerHTML = setorCounts.map(r => `
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
-      <span style="width:110px;font-size:13px;color:oklch(45% 0.02 258);flex-shrink:0;">${esc(r.setor)}</span>
-      <div style="flex:1;height:10px;background:oklch(94% 0.005 258);border-radius:6px;overflow:hidden;">
-        <div style="height:10px;border-radius:6px;width:${Math.round(r.count / maxSetor * 100)}%;background:oklch(46% 0.17 258);"></div>
-      </div>
-      <span style="width:24px;text-align:right;font-size:13px;font-weight:700;">${r.count}</span>
-    </div>`).join('');
+  document.getElementById('bar-setor').innerHTML = setorCounts.map(r => barRow(r.setor, r.count, maxSetor, 'var(--brand)')).join('');
 
   const critCounts = ['Alta', 'Média', 'Baixa'].map(criticidade => ({ criticidade, count: openProblems.filter(p => p.criticidade === criticidade).length }));
   const maxCrit = Math.max(1, ...critCounts.map(r => r.count));
-  document.getElementById('bar-criticidade').innerHTML = critCounts.map(r => `
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
-      <span style="width:110px;font-size:13px;color:oklch(45% 0.02 258);flex-shrink:0;">${esc(r.criticidade)}</span>
-      <div style="flex:1;height:10px;background:oklch(94% 0.005 258);border-radius:6px;overflow:hidden;">
-        <div style="height:10px;border-radius:6px;width:${Math.round(r.count / maxCrit * 100)}%;background:${CRIT_STYLE[r.criticidade].color};"></div>
-      </div>
-      <span style="width:24px;text-align:right;font-size:13px;font-weight:700;">${r.count}</span>
-    </div>`).join('');
+  document.getElementById('bar-criticidade').innerHTML = critCounts.map(r => barRow(r.criticidade, r.count, maxCrit, fgVar('crit', r.criticidade))).join('');
 
   const antigos = openProblems.slice().sort((a, b) => b.diasAberto - a.diasAberto).slice(0, 5);
   const agingThreshold = 14;
   document.getElementById('antigos-list').innerHTML = antigos.length === 0
-    ? '<div style="font-size:13px;color:oklch(58% 0.015 258);">Nenhum problema em aberto.</div>'
-    : antigos.map(p => {
-        const pillStyle = p.diasAberto >= agingThreshold
-          ? 'background:oklch(94% 0.06 25);color:oklch(45% 0.17 25);'
-          : 'background:oklch(95% 0.006 258);color:oklch(45% 0.02 258);';
-        return `
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid oklch(94% 0.006 258);">
-          <div style="display:flex;align-items:center;gap:10px;">
-            <span style="font-size:14px;font-weight:600;">${esc(p.titulo)}</span>
-            <span style="background:oklch(95% 0.006 258);color:oklch(45% 0.02 258);border-radius:999px;padding:3px 9px;font-size:11px;font-weight:600;">${esc(p.setor)}</span>
+    ? '<div class="muted">Nenhum problema em aberto.</div>'
+    : antigos.map(p => `
+        <div class="old-item">
+          <div class="old-main">
+            <span class="old-title">${esc(p.titulo)}</span>
+            <span class="badge badge-neutral">${esc(p.setor)}</span>
           </div>
-          <span style="border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700;${pillStyle}">${p.diasAberto} dia${p.diasAberto === 1 ? '' : 's'} em aberto</span>
-        </div>`;
-      }).join('');
+          <span class="badge ${p.diasAberto >= agingThreshold ? 'crit-alta' : 'badge-neutral'}">${p.diasAberto} dia${p.diasAberto === 1 ? '' : 's'} em aberto</span>
+        </div>`).join('');
 }
 
 function renderConfig() {
   // Setores chips
   document.getElementById('setores-chips').innerHTML = state.setores.map(s => `
-    <span style="display:flex;align-items:center;gap:6px;background:oklch(95% 0.006 258);border-radius:999px;padding:6px 6px 6px 14px;font-size:13px;font-weight:600;">
+    <span class="chip">
       ${esc(s.nome)}
-      <button onclick="app.removeSetor('${esc(s.nome)}')" style="border:none;background:oklch(90% 0.006 258);width:20px;height:20px;border-radius:50%;font-size:12px;cursor:pointer;color:oklch(45% 0.02 258);">×</button>
+      <button class="round-btn" onclick="app.removeSetor('${esc(s.nome)}')" aria-label="Remover setor ${esc(s.nome)}">×</button>
     </span>`).join('');
 
   // Select setor config
@@ -559,13 +528,13 @@ function renderConfig() {
 
   // Pessoas list
   document.getElementById('pessoas-list').innerHTML = state.pessoas.map(p => `
-    <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid oklch(94% 0.006 258);">
-      <span style="width:26px;height:26px;border-radius:50%;background:oklch(94% 0.04 258);color:oklch(45% 0.17 258);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${esc(initials(p.nome))}</span>
-      <span style="flex:1;font-size:14px;font-weight:600;">${esc(p.nome)}</span>
-      <select onchange="app.changePessoaSetor('${esc(p.id)}',this.value)" style="padding:8px 10px;border-radius:8px;border:1px solid oklch(88% 0.006 258);font-size:13px;cursor:pointer;">
+    <div class="person-row">
+      <span class="avatar">${esc(initials(p.nome))}</span>
+      <span class="name">${esc(p.nome)}</span>
+      <select class="select" onchange="app.changePessoaSetor('${esc(p.id)}',this.value)" aria-label="Setor de ${esc(p.nome)}">
         ${state.setores.map(s => `<option value="${esc(s.nome)}" ${s.nome === p.setor ? 'selected' : ''}>${esc(s.nome)}</option>`).join('')}
       </select>
-      <button onclick="app.removePessoa('${esc(p.id)}')" style="border:none;background:oklch(95% 0.005 258);width:28px;height:28px;border-radius:50%;font-size:13px;cursor:pointer;color:oklch(45% 0.02 258);flex-shrink:0;">×</button>
+      <button class="round-btn" onclick="app.removePessoa('${esc(p.id)}')" aria-label="Remover ${esc(p.nome)}">×</button>
     </div>`).join('');
 }
 
@@ -636,10 +605,7 @@ function renderStatusPills() {
   if (!modal) return;
   document.getElementById('status-pills').innerHTML = STATUSES.map(st => {
     const active = modal.draft.status === st;
-    const style = active
-      ? 'background:oklch(46% 0.17 258);color:#fff;border-color:oklch(46% 0.17 258);'
-      : 'background:#fff;color:oklch(35% 0.02 258);border:1px solid oklch(88% 0.006 258);';
-    return `<button onclick="app.setDraftStatus('${esc(st)}')" style="padding:8px 14px;border-radius:999px;font-size:13px;font-weight:600;cursor:pointer;${style}">${esc(st)}</button>`;
+    return `<button type="button" class="pill${active ? ' active' : ''}" onclick="app.setDraftStatus('${esc(st)}')">${esc(st)}</button>`;
   }).join('');
 }
 
@@ -649,16 +615,16 @@ function renderComentarios() {
   const comentarios = modal.draft.comentarios || [];
   const el = document.getElementById('comentarios-list');
   if (comentarios.length === 0) {
-    el.innerHTML = '<div style="font-size:13px;color:oklch(60% 0.015 258);margin-bottom:12px;">Nenhum comentário ainda.</div>';
+    el.innerHTML = '<div class="muted" style="margin-bottom:12px;">Nenhum comentário ainda.</div>';
     return;
   }
   el.innerHTML = comentarios.map(c => `
-    <div style="margin-bottom:12px;padding:10px 12px;background:oklch(97% 0.004 258);border-radius:10px;">
-      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;">
+    <div class="comment">
+      <div class="comment-head">
         <strong>${esc(c.autor)}</strong>
-        <span style="color:oklch(58% 0.015 258);">${fmtDate(c.data)}</span>
+        <span>${fmtDate(c.data)}</span>
       </div>
-      <div style="font-size:13px;line-height:1.4;">${esc(c.texto)}</div>
+      <div class="comment-text">${esc(c.texto)}</div>
     </div>`).join('');
 }
 

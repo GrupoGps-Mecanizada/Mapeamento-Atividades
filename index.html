@@ -10,44 +10,168 @@
   <!-- Supabase SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <style>
-    *, *::before, *::after { box-sizing: border-box; }
-    body { margin: 0; font-family: 'Manrope', sans-serif; -webkit-font-smoothing: antialiased; background: oklch(96% 0.006 258); color: oklch(20% 0.012 258); }
-    select, input, textarea, button { font-family: 'Manrope', sans-serif; }
-    a { color: oklch(46% 0.17 258); text-decoration: none; }
-    a:hover { color: oklch(38% 0.17 258); }
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-    #busca-problemas::placeholder { color: rgba(255,255,255,0.75); }
-    .hidden { display: none !important; }
-    .fade-in { animation: fadeIn 0.18s ease-out; }
-    /* Loading overlay */
-    #loading-overlay { position: fixed; inset: 0; background: rgba(255,255,255,0.85); display: flex; align-items: center; justify-content: center; z-index: 999; font-size: 16px; font-weight: 600; color: oklch(46% 0.17 258); }
-    #loading-overlay.hidden { display: none; }
-    /* Toast */
-    #toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: oklch(25% 0.01 258); color: #fff; padding: 12px 24px; border-radius: 12px; font-size: 14px; font-weight: 600; z-index: 1000; transition: opacity 0.3s; pointer-events: none; }
-    #toast.hidden { opacity: 0; }
-    /* Confirm delete modal */
-    #confirm-modal { position: fixed; inset: 0; background: rgba(15,23,42,0.5); display: flex; align-items: center; justify-content: center; z-index: 200; }
-    #confirm-modal.hidden { display: none; }
-    tr:hover td { background: oklch(93% 0.05 258) !important; }
-    select option { background: #fff; color: oklch(20% 0.012 258); }
+    :root{
+      --brand:#1F3A5F;--brand-hover:#17304F;--brand-soft:#E6ECF4;
+      --bg:#F3F5F7;--surface:#FFFFFF;--border:#D9DEE4;--border-input:#C3CAD3;--row-alt:#F7F9FB;
+      --text:#1B2430;--text-2:#5B6675;--danger:#B42318;--danger-soft:#FBE9E7;--radius:8px;
+      --st-aberto-bg:#E9EDF1;--st-aberto-fg:#3B4654;
+      --st-em-andamento-bg:#DCE8F5;--st-em-andamento-fg:#1D4C80;
+      --st-aguardando-terceiros-bg:#F3E6D6;--st-aguardando-terceiros-fg:#7A4B14;
+      --st-resolvido-bg:#E0F0E7;--st-resolvido-fg:#1F5C3E;
+      --st-cancelado-bg:#ECEEF0;--st-cancelado-fg:#5B6675;
+      --crit-baixa-bg:#E4EEE8;--crit-baixa-fg:#2F5D46;
+      --crit-media-bg:#F6EBC8;--crit-media-fg:#6B4E00;
+      --crit-alta-bg:#F6E1DE;--crit-alta-fg:#8E2A22;
+    }
+    *,*::before,*::after{box-sizing:border-box}
+    html{-webkit-text-size-adjust:100%}
+    body{margin:0;font-family:'Manrope',sans-serif;-webkit-font-smoothing:antialiased;background:var(--bg);color:var(--text);font-size:14px;line-height:1.4}
+    body.modal-open{overflow:hidden}
+    select,input,textarea,button{font-family:inherit;font-size:14px;color:inherit}
+    a{color:var(--brand);text-decoration:none}a:hover{color:var(--brand-hover)}
+    .hidden{display:none!important}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+    .fade-in{animation:fadeIn .18s ease-out}
+    .spacer{flex:1}
+
+    #loading-overlay{position:fixed;inset:0;background:rgba(243,245,247,.88);display:flex;align-items:center;justify-content:center;z-index:999;font-size:16px;font-weight:600;color:var(--brand)}
+    #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--text);color:#fff;padding:12px 20px;border-radius:var(--radius);font-size:14px;font-weight:600;z-index:1000;pointer-events:none;max-width:calc(100% - 32px);text-align:center}
+
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:40px;padding:0 18px;border-radius:var(--radius);border:1px solid transparent;font-weight:700;cursor:pointer;white-space:nowrap}
+    .btn-primary{background:var(--brand);color:#fff}.btn-primary:hover{background:var(--brand-hover)}
+    .btn-secondary{background:var(--surface);color:var(--text);border-color:var(--border-input)}.btn-secondary:hover{background:var(--bg)}
+    .btn-light{background:#fff;color:var(--brand)}
+    .btn-danger{background:var(--danger);color:#fff}
+    .btn-danger-soft{background:var(--danger-soft);color:var(--danger)}
+    .btn-sm{min-height:34px;padding:0 12px;font-size:13px}
+    .icon-btn{border:0;background:#EDF0F3;width:32px;height:32px;border-radius:50%;font-size:18px;line-height:1;cursor:pointer;color:var(--text-2)}
+    .round-btn{border:0;background:#DDE2E8;width:22px;height:22px;border-radius:50%;font-size:13px;line-height:1;cursor:pointer;color:var(--text-2);flex-shrink:0}
+
+    .input,.select,.textarea{width:100%;min-height:40px;padding:9px 12px;border-radius:var(--radius);border:1px solid var(--border-input);background:#fff}
+    .textarea{resize:vertical}
+    .input:focus,.select:focus,.textarea:focus,.btn:focus-visible,.tab:focus-visible{outline:2px solid var(--brand);outline-offset:1px}
+    .select{cursor:pointer}
+    .lbl{display:block;font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:6px}
+
+    .app-header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px;padding:18px 40px;background:var(--brand);color:#fff}
+    .brand{display:flex;align-items:baseline;gap:6px;flex-shrink:0}
+    .brand-1{font-size:20px;font-weight:300;letter-spacing:.04em}
+    .brand-2{font-size:26px;font-weight:800;letter-spacing:.01em}
+    .brand-3{font-size:16px;font-weight:400;letter-spacing:.03em;opacity:.85;margin-left:2px}
+    .header-tools{display:flex;flex-wrap:wrap;align-items:center;gap:12px}
+    .search{width:240px;background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.3);color:#fff}
+    .search::placeholder{color:rgba(255,255,255,.78)}
+    .header-user{display:flex;align-items:center;gap:8px;font-size:13px}
+    .header-user .select{width:auto;background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.3);color:#fff;font-weight:600}
+    .header-user option,.filters option{background:#fff;color:var(--text)}
+    .system-bar{padding:10px 40px;background:#fff;border-bottom:1px solid var(--border);font-size:12px;font-weight:800;letter-spacing:.1em;color:var(--brand)}
+    .wrap{padding:24px 40px 0}
+    main{padding:8px 40px 56px}
+
+    .tabs{display:flex;gap:28px;border-bottom:1px solid var(--border);overflow-x:auto;scrollbar-width:none}
+    .tabs::-webkit-scrollbar{display:none}
+    .tab{padding:14px 2px;background:none;border:0;border-bottom:2px solid transparent;font-size:15px;font-weight:700;color:var(--text-2);cursor:pointer;white-space:nowrap;flex-shrink:0}
+    .tab.active{color:var(--brand);border-bottom-color:var(--brand)}
+    .filters{display:flex;flex-wrap:wrap;gap:12px;margin:20px 0}
+    .filters .select{width:auto;min-width:180px}
+
+    .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius)}
+    .card-pad{padding:22px}
+    .card-title{font-weight:700;font-size:16px;margin-bottom:16px}
+    .table-card{overflow:hidden}
+    .table{width:100%;border-collapse:collapse}
+    .table th{text-align:left;padding:13px 16px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#fff;background:var(--brand)}
+    .table th{white-space:nowrap}
+    .table td{padding:14px 16px;font-size:13px;border-bottom:1px solid var(--border)}
+    .table td.c-setor,.table td.c-resp,.table td.c-prazo,.table td.c-aberto{white-space:nowrap}
+    .row{cursor:pointer}
+    .row:nth-child(even){background:var(--row-alt)}
+    .row:hover{background:var(--brand-soft)}
+    .c-titulo{font-size:14px!important;font-weight:700}
+    .c-setor,.c-aberto{color:var(--text-2)}
+    .c-prazo{font-weight:700}
+    .c-prazo.vencido{color:var(--danger)}
+    .resp{display:flex;align-items:center;gap:8px;font-weight:600}
+    .avatar{width:24px;height:24px;border-radius:50%;background:var(--brand-soft);color:var(--brand);font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+    .badge{display:inline-block;border-radius:999px;padding:4px 10px;font-size:11px;font-weight:700;white-space:nowrap}
+    .st-aberto{background:var(--st-aberto-bg);color:var(--st-aberto-fg)}
+    .st-em-andamento{background:var(--st-em-andamento-bg);color:var(--st-em-andamento-fg)}
+    .st-aguardando-terceiros{background:var(--st-aguardando-terceiros-bg);color:var(--st-aguardando-terceiros-fg)}
+    .st-resolvido{background:var(--st-resolvido-bg);color:var(--st-resolvido-fg)}
+    .st-cancelado{background:var(--st-cancelado-bg);color:var(--st-cancelado-fg)}
+    .crit-baixa{background:var(--crit-baixa-bg);color:var(--crit-baixa-fg)}
+    .crit-media{background:var(--crit-media-bg);color:var(--crit-media-fg)}
+    .crit-alta{background:var(--crit-alta-bg);color:var(--crit-alta-fg)}
+    .badge-neutral{background:#EDF0F3;color:var(--text-2)}
+
+    .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px}
+    .kpi{padding:20px}
+    .kpi-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-2)}
+    .kpi-body{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-top:8px}
+    .kpi-value{font-size:34px;font-weight:800}
+    .kpi-spark{display:flex;align-items:flex-end;gap:3px;height:30px;border-bottom:1px solid var(--border);padding-bottom:2px}
+    .kpi-foot{font-size:11px;color:var(--text-2);margin-top:6px}
+    .grid-2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr));gap:20px}
+    .mt-20{margin-top:20px}.mt-24{margin-top:24px}
+    .bar-row{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+    .bar-label{width:110px;font-size:13px;color:var(--text-2);flex-shrink:0}
+    .bar-track{flex:1;height:10px;background:#E8ECF0;border-radius:6px;overflow:hidden}
+    .bar-fill{height:10px;border-radius:6px}
+    .bar-count{width:24px;text-align:right;font-size:13px;font-weight:700}
+    .old-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 0;border-bottom:1px solid #E8ECF0}
+    .old-main{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+    .old-title{font-size:14px;font-weight:600}
+    .muted{font-size:13px;color:var(--text-2)}
+
+    .chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+    .chip{display:flex;align-items:center;gap:6px;background:#EDF0F3;border-radius:999px;padding:6px 6px 6px 14px;font-size:13px;font-weight:600}
+    .inline-form{display:flex;gap:8px;flex-wrap:wrap}
+    .inline-form .input{flex:1;min-width:160px}
+    .inline-form .select{width:auto}
+    .person-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #E8ECF0}
+    .person-row .name{flex:1;font-size:14px;font-weight:600;min-width:0}
+    .person-row .select{width:auto;min-height:34px;padding:6px 10px;font-size:13px}
+
+    .modal-overlay{position:fixed;inset:0;background:rgba(15,23,42,.5);display:flex;align-items:center;justify-content:center;padding:24px;z-index:50}
+    .modal{background:#fff;border-radius:12px;width:min(560px,100%);max-height:88vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.2)}
+    .modal-head{display:flex;align-items:center;justify-content:space-between;padding:22px 28px 14px}
+    .modal-head h2{margin:0;font-size:20px;font-weight:700}
+    .modal-body{padding:6px 28px 18px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:16px}
+    .modal-actions{display:flex;align-items:center;gap:10px;padding:14px 28px;border-top:1px solid var(--border);background:#fff;border-radius:0 0 12px 12px}
+    .form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    .pills{display:flex;flex-wrap:wrap;gap:8px}
+    .pill{padding:8px 14px;border-radius:999px;font-size:13px;font-weight:600;cursor:pointer;background:#fff;color:var(--text);border:1px solid var(--border-input)}
+    .pill.active{background:var(--brand);color:#fff;border-color:var(--brand)}
+    .info-line{display:flex;gap:20px;flex-wrap:wrap;font-size:13px;color:var(--text-2)}
+    .info-line strong{color:var(--text)}
+    .section{border-top:1px solid var(--border);padding-top:16px}
+    .section-title{font-weight:700;font-size:15px;margin-bottom:12px}
+    .comment{margin-bottom:12px;padding:10px 12px;background:var(--bg);border-radius:var(--radius)}
+    .comment-head{display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;gap:8px}
+    .comment-head span{color:var(--text-2)}
+    .comment-text{font-size:13px;line-height:1.4}
+    .confirm-box{background:#fff;border-radius:12px;padding:28px 32px;max-width:420px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,.2)}
+    .confirm-title{font-size:20px;font-weight:700;margin-bottom:10px}
+    .confirm-text{font-size:14px;color:var(--text-2);margin-bottom:24px;line-height:1.5}
+    .confirm-actions{display:flex;justify-content:flex-end;gap:10px}
   </style>
 </head>
 <body>
 
 <!-- Loading -->
-<div id="loading-overlay">Carregando...</div>
+<div id="loading-overlay"><span id="loading-text">Carregando...</span></div>
 
 <!-- Toast -->
-<div id="toast" class="hidden"></div>
+<div id="toast" class="hidden" role="status" aria-live="polite"></div>
 
 <!-- Confirm delete -->
-<div id="confirm-modal" class="hidden">
-  <div style="background:#fff;border-radius:16px;padding:28px 32px;max-width:420px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.2);animation:fadeIn 0.15s ease-out;">
-    <div style="font-size:20px;font-weight:700;margin-bottom:10px;">Excluir problema?</div>
-    <div id="confirm-text" style="font-size:14px;color:oklch(45% 0.02 258);margin-bottom:24px;line-height:1.5;"></div>
-    <div style="display:flex;justify-content:flex-end;gap:10px;">
-      <button id="confirm-cancel" style="padding:10px 20px;border-radius:10px;border:1px solid oklch(88% 0.006 258);background:#fff;font-size:14px;font-weight:700;cursor:pointer;">Cancelar</button>
-      <button id="confirm-ok" style="padding:10px 20px;border-radius:10px;border:none;background:#dc2626;color:#fff;font-size:14px;font-weight:700;cursor:pointer;">Sim, excluir</button>
+<div id="confirm-modal" class="modal-overlay hidden" style="z-index:200">
+  <div class="confirm-box fade-in">
+    <div class="confirm-title">Excluir problema?</div>
+    <div id="confirm-text" class="confirm-text"></div>
+    <div class="confirm-actions">
+      <button id="confirm-cancel" class="btn btn-secondary">Cancelar</button>
+      <button id="confirm-ok" class="btn btn-danger">Sim, excluir</button>
     </div>
   </div>
 </div>
@@ -55,63 +179,63 @@
 <!-- App -->
 <div id="app">
 
-  <header style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:20px;padding:26px 40px;background:radial-gradient(ellipse at 30% 40%, oklch(58% 0.23 264) 0%, oklch(46% 0.24 265) 60%, oklch(40% 0.22 266) 100%);">
-    <div style="display:flex;align-items:baseline;gap:6px;flex-shrink:0;">
-      <span style="font-size:20px;font-weight:300;letter-spacing:0.04em;color:#fff;">GRUPO</span>
-      <span style="font-size:26px;font-weight:800;letter-spacing:0.01em;color:#fff;">GPS</span>
-      <span style="font-size:16px;font-weight:400;letter-spacing:0.03em;color:rgba(255,255,255,0.82);margin-left:2px;">Mecanizada</span>
+  <header class="app-header">
+    <div class="brand">
+      <span class="brand-1">GRUPO</span>
+      <span class="brand-2">GPS</span>
+      <span class="brand-3">Mecanizada</span>
     </div>
-    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:14px;">
-      <input id="busca-problemas" type="text" placeholder="Buscar problemas..." style="padding:11px 16px;border-radius:10px;border:1px solid rgba(255,255,255,0.3);background:rgba(255,255,255,0.14);font-size:14px;width:220px;color:#fff;" oninput="app.onBuscaChange(this.value)">
-      <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:rgba(255,255,255,0.85);">
+    <div class="header-tools">
+      <input id="busca-problemas" type="text" class="input search" placeholder="Buscar problemas..." oninput="app.onBuscaChange(this.value)">
+      <div class="header-user">
         <span>Você é</span>
-        <select id="current-user-select" style="padding:9px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.3);background:rgba(255,255,255,0.14);font-size:14px;font-weight:600;color:#fff;cursor:pointer;" onchange="app.setCurrentUser(this.value)"></select>
+        <select id="current-user-select" class="select" onchange="app.setCurrentUser(this.value)"></select>
       </div>
-      <button onclick="app.openNew()" style="padding:12px 22px;border-radius:10px;border:none;background:#fff;color:oklch(46% 0.24 265);font-size:14px;font-weight:800;cursor:pointer;">+ Novo problema</button>
+      <button id="btn-new" class="btn btn-light" onclick="app.openNew()">+ Novo problema</button>
     </div>
   </header>
 
-  <div style="padding:10px 40px;background:#fff;font-size:12px;letter-spacing:0.04em;text-transform:uppercase;color:oklch(52% 0.05 264);border-bottom:1px solid oklch(93% 0.008 258);">Central de Problemas</div>
+  <div class="system-bar">Central de Problemas</div>
 
-  <div style="padding:24px 40px 0;">
-    <div style="display:flex;gap:28px;border-bottom:1px solid oklch(84% 0.035 258);">
-      <button id="tab-lista" onclick="app.setTab('lista')" style="padding:14px 2px;background:none;border:none;border-bottom:2px solid oklch(46% 0.17 258);font-size:15px;font-weight:700;cursor:pointer;color:oklch(46% 0.17 258);">Lista</button>
-      <button id="tab-dashboard" onclick="app.setTab('dashboard')" style="padding:14px 2px;background:none;border:none;border-bottom:2px solid transparent;font-size:15px;font-weight:700;cursor:pointer;color:oklch(52% 0.02 258);">Dashboard</button>
-      <button id="tab-config" onclick="app.setTab('config')" style="padding:14px 2px;background:none;border:none;border-bottom:2px solid transparent;font-size:15px;font-weight:700;cursor:pointer;color:oklch(52% 0.02 258);">Configurações</button>
+  <div class="wrap">
+    <div class="tabs">
+      <button id="tab-lista" class="tab active" onclick="app.setTab('lista')">Lista</button>
+      <button id="tab-dashboard" class="tab" onclick="app.setTab('dashboard')">Dashboard</button>
+      <button id="tab-config" class="tab" onclick="app.setTab('config')">Configurações</button>
     </div>
 
     <!-- Filtros (lista) -->
-    <div id="filters-bar" style="display:flex;flex-wrap:wrap;gap:12px;margin:20px 0;">
-      <select id="filter-setor" onchange="app.setFilter('setor',this.value)" style="padding:10px 14px;border-radius:10px;border:1px solid oklch(88% 0.006 258);background:#fff;font-size:14px;min-width:170px;cursor:pointer;">
+    <div id="filters-bar" class="filters">
+      <select id="filter-setor" class="select" onchange="app.setFilter('setor',this.value)">
         <option value="todos">Todos os setores</option>
       </select>
-      <select id="filter-criticidade" onchange="app.setFilter('criticidade',this.value)" style="padding:10px 14px;border-radius:10px;border:1px solid oklch(88% 0.006 258);background:#fff;font-size:14px;min-width:170px;cursor:pointer;">
+      <select id="filter-criticidade" class="select" onchange="app.setFilter('criticidade',this.value)">
         <option value="todos">Todas as criticidades</option>
         <option value="Alta">Alta</option>
         <option value="Média">Média</option>
         <option value="Baixa">Baixa</option>
       </select>
-      <select id="filter-responsavel" onchange="app.setFilter('responsavel',this.value)" style="padding:10px 14px;border-radius:10px;border:1px solid oklch(88% 0.006 258);background:#fff;font-size:14px;min-width:190px;cursor:pointer;">
+      <select id="filter-responsavel" class="select" onchange="app.setFilter('responsavel',this.value)">
         <option value="todos">Todos os responsáveis</option>
       </select>
     </div>
   </div>
 
-  <main style="padding:8px 40px 56px;">
+  <main>
 
     <!-- ABA: LISTA -->
     <div id="view-lista">
-      <div style="background:#fff;border-radius:16px;border:1px solid oklch(84% 0.035 258);overflow:hidden;">
-        <table style="width:100%;border-collapse:collapse;">
+      <div class="card table-card">
+        <table class="table">
           <thead>
-            <tr style="background:oklch(46% 0.17 258);">
-              <th style="text-align:left;padding:14px 16px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#fff;">Título</th>
-              <th style="text-align:left;padding:14px 16px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#fff;">Setor</th>
-              <th style="text-align:left;padding:14px 16px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#fff;">Criticidade</th>
-              <th style="text-align:left;padding:14px 16px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#fff;">Responsável</th>
-              <th style="text-align:left;padding:14px 16px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#fff;">Status</th>
-              <th style="text-align:left;padding:14px 16px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#fff;">Prazo ↑</th>
-              <th style="text-align:left;padding:14px 16px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#fff;">Aberto por</th>
+            <tr>
+              <th>Título</th>
+              <th>Setor</th>
+              <th>Criticidade</th>
+              <th>Responsável</th>
+              <th>Status</th>
+              <th>Prazo ↑</th>
+              <th>Aberto por</th>
             </tr>
           </thead>
           <tbody id="lista-tbody"></tbody>
@@ -121,45 +245,45 @@
 
     <!-- ABA: DASHBOARD -->
     <div id="view-dashboard" class="hidden">
-      <div id="kpi-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;"></div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px;margin-top:24px;">
-        <div style="background:#fff;border-radius:16px;padding:22px;border:1px solid oklch(84% 0.035 258);">
-          <div style="font-weight:600;font-size:17px;margin-bottom:16px;">Problemas em aberto por setor</div>
+      <div id="kpi-grid" class="kpi-grid"></div>
+      <div class="grid-2 mt-24">
+        <div class="card card-pad">
+          <div class="card-title">Problemas em aberto por setor</div>
           <div id="bar-setor"></div>
         </div>
-        <div style="background:#fff;border-radius:16px;padding:22px;border:1px solid oklch(84% 0.035 258);">
-          <div style="font-weight:600;font-size:17px;margin-bottom:16px;">Problemas em aberto por criticidade</div>
+        <div class="card card-pad">
+          <div class="card-title">Problemas em aberto por criticidade</div>
           <div id="bar-criticidade"></div>
         </div>
       </div>
-      <div style="background:#fff;border-radius:16px;padding:22px;border:1px solid oklch(84% 0.035 258);margin-top:20px;">
-        <div style="font-weight:600;font-size:17px;margin-bottom:12px;">Mais antigos em aberto</div>
+      <div class="card card-pad mt-20">
+        <div class="card-title" style="margin-bottom:12px;">Mais antigos em aberto</div>
         <div id="antigos-list"></div>
       </div>
     </div>
 
     <!-- ABA: CONFIG -->
     <div id="view-config" class="hidden">
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px;">
+      <div class="grid-2">
         <!-- Setores -->
-        <div style="background:#fff;border-radius:16px;padding:22px;border:1px solid oklch(84% 0.035 258);">
-          <div style="font-weight:600;font-size:17px;margin-bottom:16px;">Setores</div>
-          <div id="setores-chips" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;"></div>
-          <div style="display:flex;gap:8px;">
-            <input id="novo-setor-input" type="text" placeholder="Novo setor..." style="flex:1;padding:10px 14px;border-radius:10px;border:1px solid oklch(88% 0.006 258);font-size:14px;">
-            <button onclick="app.addSetor()" style="padding:10px 18px;border-radius:10px;border:none;background:oklch(46% 0.17 258);color:#fff;font-size:14px;font-weight:700;cursor:pointer;">Adicionar</button>
+        <div class="card card-pad">
+          <div class="card-title">Setores</div>
+          <div id="setores-chips" class="chips"></div>
+          <div class="inline-form">
+            <input id="novo-setor-input" type="text" class="input" placeholder="Novo setor...">
+            <button class="btn btn-primary" onclick="app.addSetor()">Adicionar</button>
           </div>
         </div>
         <!-- Pessoas -->
-        <div style="background:#fff;border-radius:16px;padding:22px;border:1px solid oklch(84% 0.035 258);">
-          <div style="font-weight:600;font-size:17px;margin-bottom:16px;">Pessoas</div>
+        <div class="card card-pad">
+          <div class="card-title">Pessoas</div>
           <div id="pessoas-list"></div>
-          <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;">
-            <input id="nova-pessoa-nome" type="text" placeholder="Nome da pessoa..." style="flex:1;min-width:160px;padding:10px 14px;border-radius:10px;border:1px solid oklch(88% 0.006 258);font-size:14px;">
-            <select id="nova-pessoa-setor" style="padding:10px 12px;border-radius:10px;border:1px solid oklch(88% 0.006 258);font-size:14px;cursor:pointer;">
+          <div class="inline-form" style="margin-top:16px;">
+            <input id="nova-pessoa-nome" type="text" class="input" placeholder="Nome da pessoa...">
+            <select id="nova-pessoa-setor" class="select">
               <option value="">Setor</option>
             </select>
-            <button onclick="app.addPessoa()" style="padding:10px 18px;border-radius:10px;border:none;background:oklch(46% 0.17 258);color:#fff;font-size:14px;font-weight:700;cursor:pointer;">Adicionar</button>
+            <button class="btn btn-primary" onclick="app.addPessoa()">Adicionar</button>
           </div>
         </div>
       </div>
@@ -170,33 +294,33 @@
 </div>
 
 <!-- MODAL -->
-<div id="modal-overlay" class="hidden" onclick="app.closeModal()" style="position:fixed;inset:0;background:rgba(15,23,42,0.45);display:flex;align-items:center;justify-content:center;padding:24px;z-index:50;">
-  <div onclick="event.stopPropagation()" style="background:#fff;border-radius:20px;padding:32px;width:min(560px,100%);max-height:88vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.25);" class="fade-in">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;">
-      <h2 id="modal-title" style="margin:0;font-size:22px;font-weight:600;"></h2>
-      <button onclick="app.closeModal()" style="border:none;background:oklch(95% 0.005 258);width:32px;height:32px;border-radius:50%;font-size:16px;cursor:pointer;color:oklch(45% 0.02 258);">×</button>
+<div id="modal-overlay" class="modal-overlay hidden" onclick="app.closeModal()">
+  <div class="modal fade-in" onclick="event.stopPropagation()" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-head">
+      <h2 id="modal-title"></h2>
+      <button class="icon-btn" onclick="app.closeModal()" aria-label="Fechar">×</button>
     </div>
 
-    <div style="display:flex;flex-direction:column;gap:16px;">
+    <div class="modal-body">
       <!-- Título -->
       <div>
-        <label style="display:block;font-size:12px;font-weight:700;color:oklch(45% 0.02 258);margin-bottom:6px;">Título</label>
-        <input id="draft-titulo" type="text" placeholder="Ex: Falta de estoque de EPI" style="width:100%;padding:11px 14px;border-radius:10px;border:1px solid oklch(88% 0.006 258);font-size:14px;">
+        <label class="lbl" for="draft-titulo">Título</label>
+        <input id="draft-titulo" type="text" class="input" placeholder="Ex: Falta de estoque de EPI">
       </div>
       <!-- Descrição -->
       <div>
-        <label style="display:block;font-size:12px;font-weight:700;color:oklch(45% 0.02 258);margin-bottom:6px;">Descrição</label>
-        <textarea id="draft-descricao" placeholder="Detalhe o problema..." rows="3" style="width:100%;padding:11px 14px;border-radius:10px;border:1px solid oklch(88% 0.006 258);font-size:14px;resize:vertical;font-family:'Manrope',sans-serif;"></textarea>
+        <label class="lbl" for="draft-descricao">Descrição</label>
+        <textarea id="draft-descricao" class="textarea" placeholder="Detalhe o problema..." rows="3"></textarea>
       </div>
       <!-- Setor + Criticidade -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+      <div class="form-row">
         <div>
-          <label style="display:block;font-size:12px;font-weight:700;color:oklch(45% 0.02 258);margin-bottom:6px;">Setor</label>
-          <select id="draft-setor" style="width:100%;padding:11px 14px;border-radius:10px;border:1px solid oklch(88% 0.006 258);font-size:14px;cursor:pointer;"><option value="">Selecione</option></select>
+          <label class="lbl" for="draft-setor">Setor</label>
+          <select id="draft-setor" class="select"><option value="">Selecione</option></select>
         </div>
         <div>
-          <label style="display:block;font-size:12px;font-weight:700;color:oklch(45% 0.02 258);margin-bottom:6px;">Criticidade</label>
-          <select id="draft-criticidade" style="width:100%;padding:11px 14px;border-radius:10px;border:1px solid oklch(88% 0.006 258);font-size:14px;cursor:pointer;">
+          <label class="lbl" for="draft-criticidade">Criticidade</label>
+          <select id="draft-criticidade" class="select">
             <option value="">Selecione</option>
             <option value="Baixa">Baixa</option>
             <option value="Média">Média</option>
@@ -205,50 +329,48 @@
         </div>
       </div>
       <!-- Responsável + Prazo -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+      <div class="form-row">
         <div>
-          <label style="display:block;font-size:12px;font-weight:700;color:oklch(45% 0.02 258);margin-bottom:6px;">Responsável</label>
-          <select id="draft-responsavel" style="width:100%;padding:11px 14px;border-radius:10px;border:1px solid oklch(88% 0.006 258);font-size:14px;cursor:pointer;"><option value="">Selecione</option></select>
+          <label class="lbl" for="draft-responsavel">Responsável</label>
+          <select id="draft-responsavel" class="select"><option value="">Selecione</option></select>
         </div>
         <div>
-          <label style="display:block;font-size:12px;font-weight:700;color:oklch(45% 0.02 258);margin-bottom:6px;">Prazo</label>
-          <input id="draft-prazo" type="date" style="width:100%;padding:11px 14px;border-radius:10px;border:1px solid oklch(88% 0.006 258);font-size:14px;">
+          <label class="lbl" for="draft-prazo">Prazo</label>
+          <input id="draft-prazo" type="date" class="input">
         </div>
       </div>
       <!-- Aberto por (só no novo) -->
       <div id="field-aberto-por">
-        <label style="display:block;font-size:12px;font-weight:700;color:oklch(45% 0.02 258);margin-bottom:6px;">Aberto por</label>
-        <select id="draft-aberto-por" style="width:100%;padding:11px 14px;border-radius:10px;border:1px solid oklch(88% 0.006 258);font-size:14px;cursor:pointer;"><option value="">Selecione</option></select>
+        <label class="lbl" for="draft-aberto-por">Aberto por</label>
+        <select id="draft-aberto-por" class="select"><option value="">Selecione</option></select>
       </div>
       <!-- Info aberto por (só no edit) -->
-      <div id="info-aberto-por" class="hidden" style="display:flex;gap:20px;font-size:13px;color:oklch(52% 0.02 258);">
-        <span>Aberto por <strong id="info-autor" style="color:oklch(24% 0.015 258);"></strong></span>
-        <span>em <strong id="info-criado" style="color:oklch(24% 0.015 258);"></strong></span>
+      <div id="info-aberto-por" class="info-line hidden">
+        <span>Aberto por <strong id="info-autor"></strong></span>
+        <span>em <strong id="info-criado"></strong></span>
       </div>
       <!-- Status pills -->
       <div>
-        <label style="display:block;font-size:12px;font-weight:700;color:oklch(45% 0.02 258);margin-bottom:8px;">Status</label>
-        <div id="status-pills" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+        <label class="lbl">Status</label>
+        <div id="status-pills" class="pills"></div>
       </div>
       <!-- Histórico (só no edit) -->
-      <div id="historico-section" class="hidden" style="border-top:1px solid oklch(93% 0.006 258);margin-top:6px;padding-top:16px;">
-        <div style="font-weight:600;font-size:16px;margin-bottom:12px;">Histórico</div>
+      <div id="historico-section" class="section hidden">
+        <div class="section-title">Histórico</div>
         <div id="comentarios-list"></div>
-        <div style="display:flex;gap:8px;margin-top:8px;">
-          <input id="novo-comentario" type="text" placeholder="Adicionar comentário..." style="flex:1;padding:10px 14px;border-radius:10px;border:1px solid oklch(88% 0.006 258);font-size:13px;">
-          <button onclick="app.addComment()" style="padding:10px 16px;border-radius:10px;border:none;background:oklch(95% 0.005 258);font-size:13px;font-weight:700;cursor:pointer;color:oklch(35% 0.02 258);">Enviar</button>
+        <div class="inline-form" style="margin-top:8px;">
+          <input id="novo-comentario" type="text" class="input" placeholder="Adicionar comentário...">
+          <button class="btn btn-secondary" onclick="app.addComment()">Enviar</button>
         </div>
       </div>
-      <!-- Ações -->
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;">
-        <div>
-          <button id="btn-delete" class="hidden" onclick="app.confirmDelete()" style="padding:10px 18px;border-radius:10px;border:none;background:oklch(95% 0.01 25);color:#dc2626;font-size:14px;font-weight:700;cursor:pointer;">🗑 Excluir</button>
-        </div>
-        <div style="display:flex;gap:10px;">
-          <button onclick="app.closeModal()" style="padding:12px 20px;border-radius:10px;border:1px solid oklch(88% 0.006 258);background:#fff;font-size:14px;font-weight:700;cursor:pointer;">Cancelar</button>
-          <button id="btn-save" onclick="app.saveDraft()" style="padding:12px 22px;border-radius:10px;border:none;font-size:14px;font-weight:700;cursor:pointer;background:oklch(46% 0.17 258);color:#fff;">Salvar</button>
-        </div>
-      </div>
+    </div>
+
+    <!-- Ações -->
+    <div class="modal-actions">
+      <button id="btn-delete" class="btn btn-danger-soft hidden" onclick="app.confirmDelete()">Excluir</button>
+      <span class="spacer"></span>
+      <button class="btn btn-secondary" onclick="app.closeModal()">Cancelar</button>
+      <button id="btn-save" class="btn btn-primary" onclick="app.saveDraft()">Salvar</button>
     </div>
   </div>
 </div>
