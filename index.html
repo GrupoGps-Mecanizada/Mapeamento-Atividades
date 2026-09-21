@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Central de Problemas — Grupo GPS Mecanizada</title>
-  <meta name="description" content="Sistema de gestão de problemas operacionais do Grupo GPS Mecanizada.">
+  <title>MAPEAMENTO DE ATIVIDADES — Grupo GPS Mecanizada</title>
+  <meta name="description" content="Mapeamento de atividades e problemas operacionais do Grupo GPS Mecanizada.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <!-- Supabase SDK -->
@@ -61,9 +61,7 @@
     .header-tools{display:flex;flex-wrap:wrap;align-items:center;gap:12px}
     .search{width:240px;background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.3);color:#fff}
     .search::placeholder{color:rgba(255,255,255,.78)}
-    .header-user{display:flex;align-items:center;gap:8px;font-size:13px}
-    .header-user .select{width:auto;background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.3);color:#fff;font-weight:600}
-    .header-user option,.filters option{background:#fff;color:var(--text)}
+    .filters option{background:#fff;color:var(--text)}
     .system-bar{padding:10px 40px;background:#fff;border-bottom:1px solid var(--border);font-size:12px;font-weight:800;letter-spacing:.1em;color:var(--brand)}
     .wrap{padding:24px 40px 0}
     main{padding:8px 40px 56px}
@@ -187,15 +185,11 @@
     </div>
     <div class="header-tools">
       <input id="busca-problemas" type="text" class="input search" placeholder="Buscar problemas..." oninput="app.onBuscaChange(this.value)">
-      <div class="header-user">
-        <span>Você é</span>
-        <select id="current-user-select" class="select" onchange="app.setCurrentUser(this.value)"></select>
-      </div>
       <button id="btn-new" class="btn btn-light" onclick="app.openNew()">+ Novo problema</button>
     </div>
   </header>
 
-  <div class="system-bar">Central de Problemas</div>
+  <div class="system-bar">MAPEAMENTO DE ATIVIDADES</div>
 
   <div class="wrap">
     <div class="tabs">
@@ -358,9 +352,12 @@
       <div id="historico-section" class="section hidden">
         <div class="section-title">Histórico</div>
         <div id="comentarios-list"></div>
-        <div class="inline-form" style="margin-top:8px;">
-          <input id="novo-comentario" type="text" class="input" placeholder="Adicionar comentário...">
-          <button class="btn btn-secondary" onclick="app.addComment()">Enviar</button>
+        <div class="comment-form">
+          <select id="comentario-autor" class="select" aria-label="Quem está comentando" onchange="app.setComentarioAutor(this.value)"></select>
+          <div class="inline-form" style="margin-top:8px;">
+            <input id="novo-comentario" type="text" class="input" placeholder="Adicionar comentário...">
+            <button class="btn btn-secondary" onclick="app.addComment()">Enviar</button>
+          </div>
         </div>
       </div>
     </div>

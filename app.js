@@ -1,5 +1,5 @@
 // ============================================================
-// Central de Problemas — Grupo GPS Mecanizada
+// MAPEAMENTO DE ATIVIDADES — Grupo GPS Mecanizada
 // Integração Supabase | app.js
 // ============================================================
 
@@ -79,13 +79,9 @@ async function loadAll() {
     state.problems = pRes.data || [];
     state.pessoas = pesRes.data || [];
     state.setores = setRes.data || [];
-    // Restaura usuário salvo
+    // Restaura a última pessoa escolhida como autora (vazio se nenhuma)
     const savedUser = localStorage.getItem('probsys_user');
-    if (savedUser && state.pessoas.find(p => p.id === savedUser)) {
-      state.currentUserId = savedUser;
-    } else if (state.pessoas.length > 0) {
-      state.currentUserId = state.pessoas[0].id;
-    }
+    state.currentUserId = savedUser && state.pessoas.find(p => p.id === savedUser) ? savedUser : '';
   } catch (e) {
     showToast('Erro ao carregar dados: ' + e.message, 5000);
   } finally {
@@ -142,10 +138,10 @@ const app = {
     render();
   },
 
-  // Usuário atual
-  setCurrentUser(id) {
+  // Última pessoa escolhida como autora (comentários e "Aberto por" inicial)
+  setComentarioAutor(id) {
     state.currentUserId = id;
-    localStorage.setItem('probsys_user', id);
+    if (id) localStorage.setItem('probsys_user', id);
   },
 
   // ── Modal ──────────────────────────────────────────────────
@@ -234,16 +230,18 @@ const app = {
   },
 
   addComment() {
-    const texto = document.getElementById('novo-comentario').value.trim();
-    if (!texto || !state.modal) return;
-    const autor = state.pessoas.find(p => p.id === state.currentUserId);
-    const comentario = {
-      autor: autor ? autor.nome : '—',
-      texto,
-      data: new Date().toISOString().slice(0, 10),
-    };
-    state.modal.draft.comentarios = [comentario, ...(state.modal.draft.comentarios || [])];
-    document.getElementById('novo-comentario').value = '';
+    if (!state.modal) return;
+    const input = document.getElementById('novo-comentario');
+    const texto = input.value.trim();
+    const autor = state.pessoas.find(p => p.id === document.getElementById('comentario-autor').value);
+    if (!autor) { showToast('Escolha quem está comentando.'); return; }
+    if (!texto) return;
+    app.setComentarioAutor(autor.id);
+    state.modal.draft.comentarios = [
+      { autor: autor.nome, texto, data: new Date().toISOString().slice(0, 10) },
+      ...(state.modal.draft.comentarios || []),
+    ];
+    input.value = '';
     renderComentarios();
   },
 
@@ -415,15 +413,13 @@ function renderTabs() {
   document.getElementById('filters-bar').classList.toggle('hidden', activeTab !== 'lista');
 }
 
-function renderSelects() {
-  // Usuário
-  const userSel = document.getElementById('current-user-select');
-  const prevUser = userSel.value || state.currentUserId;
-  userSel.innerHTML = state.pessoas.map(p =>
-    `<option value="${esc(p.id)}" ${p.id === prevUser ? 'selected' : ''}>${esc(p.nome)}</option>`
-  ).join('');
-  if (prevUser) userSel.value = prevUser;
+function renderComentarioAutor() {
+  const sel = document.getElementById('comentario-autor');
+  sel.innerHTML = `<option value="">Quem está comentando?</option>` +
+    state.pessoas.map(p => `<option value="${esc(p.id)}" ${p.id === state.currentUserId ? 'selected' : ''}>${esc(p.nome)}</option>`).join('');
+}
 
+function renderSelects() {
   // Filtro setores
   const setorSel = document.getElementById('filter-setor');
   const prevSetor = setorSel.value;
@@ -585,7 +581,7 @@ function renderModal() {
 
   // Histórico
   document.getElementById('historico-section').classList.toggle('hidden', isNew);
-  if (isEdit) renderComentarios();
+  if (isEdit) { renderComentarios(); renderComentarioAutor(); }
 
   // Botão excluir
   document.getElementById('btn-delete').classList.toggle('hidden', isNew);
