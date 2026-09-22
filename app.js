@@ -713,6 +713,7 @@ function render() {
 
 function renderCurrentUserSelect() {
   const sel = document.getElementById('current-user-select');
+  if (!sel) return; // elemento removido do HTML (Mapeamento de Atividades)
   const prev = sel.value || state.currentUserId;
   sel.innerHTML = `<option value="">Selecione</option>` +
     state.pessoas.map(p => `<option value="${esc(p.id)}" ${p.id === prev ? 'selected' : ''}>${esc(p.nome)}</option>`).join('');
