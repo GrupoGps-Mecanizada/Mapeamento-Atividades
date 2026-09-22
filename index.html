@@ -59,9 +59,6 @@
     .brand-2{font-size:26px;font-weight:800;letter-spacing:.01em}
     .brand-3{font-size:16px;font-weight:400;letter-spacing:.03em;opacity:.85;margin-left:2px}
     .header-tools{display:flex;flex-wrap:wrap;align-items:center;gap:12px}
-    .header-user{display:flex;align-items:center;gap:10px;font-size:13px;color:rgba(255,255,255,.9);font-weight:600}
-    #login-screen{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:500;padding:24px}
-    .login-card{background:#fff;border:1px solid var(--border);border-radius:12px;padding:32px;width:min(360px,100%);box-shadow:0 12px 40px rgba(0,0,0,.12)}
     .search{width:240px;background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.3);color:#fff}
     .search::placeholder{color:rgba(255,255,255,.78)}
     .filters option{background:#fff;color:var(--text)}
@@ -182,16 +179,6 @@
     .anexo-meta{font-size:12px;color:var(--text-2)}
     .anexo-actions{display:flex;gap:6px;flex-shrink:0}
     .clip{display:inline-flex;align-items:center;gap:3px;margin-left:8px;color:var(--text-2);font-size:12px;font-weight:600;vertical-align:middle}
-
-    .tarefa-item{display:flex;align-items:center;gap:10px;padding:8px 2px;border-bottom:1px solid var(--bg)}
-    .tarefa-item input[type=checkbox]{width:18px;height:18px;flex-shrink:0}
-    .tarefa-item input[type=text]{flex:1;border:0;background:none;font-size:14px;padding:6px 4px}
-    .tarefa-item input[type=text]:focus{outline:none;background:var(--bg);border-radius:6px}
-    .tarefa-item.feita input[type=text]{text-decoration:line-through;color:var(--text-2)}
-    .tarefa-actions{display:flex;gap:4px;opacity:0;flex-shrink:0}
-    .tarefa-item:hover .tarefa-actions,.tarefa-item:focus-within .tarefa-actions{opacity:1}
-    .tarefa-actions button{border:0;background:none;cursor:pointer;color:var(--text-2);font-size:14px;padding:4px}
-    .tarefa-actions button.on{color:var(--brand)}
     .confirm-box{background:#fff;border-radius:12px;padding:28px 32px;max-width:420px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,.2)}
     .confirm-title{font-size:20px;font-weight:700;margin-bottom:10px}
     .confirm-text{font-size:14px;color:var(--text-2);margin-bottom:24px;line-height:1.5}
@@ -258,7 +245,6 @@
       .form-row{grid-template-columns:1fr}
       .confirm-box{padding:22px}
       .confirm-actions .btn{flex:1}
-      .tarefa-actions{opacity:1}
       .anexo{flex-wrap:wrap}
       .anexo-info{flex:1 1 calc(100% - 60px)}
       .anexo-actions{flex:1 0 100%}
@@ -286,22 +272,8 @@
   </div>
 </div>
 
-<!-- Login -->
-<div id="login-screen" class="hidden">
-  <div class="login-card fade-in">
-    <div class="brand" style="margin-bottom:18px;"><span class="brand-1" style="color:var(--brand);">GRUPO</span><span class="brand-2" style="color:var(--brand);">GPS</span></div>
-    <div style="font-weight:700;font-size:13px;letter-spacing:.08em;color:var(--text-2);margin-bottom:18px;">MAPEAMENTO DE ATIVIDADES</div>
-    <label class="lbl" for="login-nome">Nome</label>
-    <input id="login-nome" type="text" class="input" autocomplete="username" placeholder="Seu primeiro nome" style="margin-bottom:12px;">
-    <label class="lbl" for="login-senha">Senha</label>
-    <input id="login-senha" type="password" class="input" autocomplete="current-password" style="margin-bottom:6px;">
-    <div id="login-erro" class="hidden" style="color:var(--danger);font-size:13px;margin-bottom:10px;"></div>
-    <button class="btn btn-primary" style="width:100%;margin-top:6px;" onclick="app.login()">Entrar</button>
-  </div>
-</div>
-
 <!-- App -->
-<div id="app" class="hidden">
+<div id="app">
 
   <header class="app-header">
     <div class="brand">
@@ -311,10 +283,6 @@
     </div>
     <div class="header-tools">
       <input id="busca-problemas" type="text" class="input search" placeholder="Buscar problemas..." oninput="app.onBuscaChange(this.value)">
-      <div id="header-user" class="header-user">
-        <span id="header-user-nome"></span>
-        <button class="btn btn-light btn-sm" onclick="app.logout()">Sair</button>
-      </div>
       <button id="btn-new" class="btn btn-light" onclick="app.openNew()">+ Novo problema</button>
     </div>
   </header>
@@ -326,7 +294,6 @@
       <button id="tab-lista" class="tab active" onclick="app.setTab('lista')">Lista</button>
       <button id="tab-dashboard" class="tab" onclick="app.setTab('dashboard')">Dashboard</button>
       <button id="tab-config" class="tab" onclick="app.setTab('config')">Configurações</button>
-      <button id="tab-tarefas" class="tab" onclick="app.setTab('tarefas')">Tarefas</button>
     </div>
 
     <!-- Filtros (lista) -->
@@ -375,7 +342,7 @@
         <div class="card card-pad">
           <div class="card-title">Setores</div>
           <div id="setores-chips" class="chips"></div>
-          <div class="inline-form admin-only hidden">
+          <div class="inline-form">
             <input id="novo-setor-input" type="text" class="input" placeholder="Novo setor...">
             <button class="btn btn-primary" onclick="app.addSetor()">Adicionar</button>
           </div>
@@ -384,27 +351,14 @@
         <div class="card card-pad">
           <div class="card-title">Pessoas</div>
           <div id="pessoas-list"></div>
-          <div class="inline-form admin-only hidden" style="margin-top:16px;">
+          <div class="inline-form" style="margin-top:16px;">
             <input id="nova-pessoa-nome" type="text" class="input" placeholder="Nome da pessoa...">
             <select id="nova-pessoa-setor" class="select">
               <option value="">Setor</option>
             </select>
-            <input id="nova-pessoa-email" type="email" class="input" placeholder="E-mail (opcional)">
             <button class="btn btn-primary" onclick="app.addPessoa()">Adicionar</button>
           </div>
         </div>
-      </div>
-    </div>
-
-    <!-- ABA: TAREFAS -->
-    <div id="view-tarefas" class="hidden">
-      <div class="card card-pad">
-        <div class="card-title">Rotineiras <span class="muted" style="font-weight:400;">— desmarcam sozinhas todo dia</span></div>
-        <div id="tarefas-rotineiras" class="tarefas-list"></div>
-      </div>
-      <div class="card card-pad mt-20">
-        <div class="card-title">Outras tarefas</div>
-        <div id="tarefas-continuas" class="tarefas-list"></div>
       </div>
     </div>
 
@@ -458,8 +412,13 @@
           <input id="draft-prazo" type="date" class="input">
         </div>
       </div>
-      <!-- Aberto por (sempre a pessoa logada) -->
-      <div id="info-aberto-por" class="info-line">
+      <!-- Aberto por (só no novo) -->
+      <div id="field-aberto-por">
+        <label class="lbl" for="draft-aberto-por">Aberto por</label>
+        <select id="draft-aberto-por" class="select"><option value="">Selecione</option></select>
+      </div>
+      <!-- Info aberto por (só no edit) -->
+      <div id="info-aberto-por" class="info-line hidden">
         <span>Aberto por <strong id="info-autor"></strong></span>
         <span>em <strong id="info-criado"></strong></span>
       </div>
@@ -480,16 +439,19 @@
       <div id="historico-section" class="section hidden">
         <div class="section-title">Histórico</div>
         <div id="comentarios-list"></div>
-        <div class="inline-form">
-          <input id="novo-comentario" type="text" class="input" placeholder="Adicionar comentário...">
-          <button class="btn btn-secondary" onclick="app.addComment()">Enviar</button>
+        <div class="comment-form">
+          <select id="comentario-autor" class="select" aria-label="Quem está comentando" onchange="app.setComentarioAutor(this.value)"></select>
+          <div class="inline-form" style="margin-top:8px;">
+            <input id="novo-comentario" type="text" class="input" placeholder="Adicionar comentário...">
+            <button class="btn btn-secondary" onclick="app.addComment()">Enviar</button>
+          </div>
         </div>
       </div>
     </div>
 
     <!-- Ações -->
     <div class="modal-actions">
-      <button id="btn-delete" class="btn btn-danger-soft admin-only hidden" onclick="app.confirmDelete()">Excluir</button>
+      <button id="btn-delete" class="btn btn-danger-soft hidden" onclick="app.confirmDelete()">Excluir</button>
       <span class="spacer"></span>
       <button class="btn btn-secondary" onclick="app.closeModal()">Cancelar</button>
       <button id="btn-save" class="btn btn-primary" onclick="app.saveDraft()">Salvar</button>
@@ -514,8 +476,6 @@
 
 <script src="tabela.js"></script>
 <script src="anexos.js"></script>
-<script src="tarefas.js"></script>
-<script src="auth.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

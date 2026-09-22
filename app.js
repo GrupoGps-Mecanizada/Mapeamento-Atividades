@@ -55,8 +55,7 @@ const state = {
   problems: [],
   pessoas: [],
   setores: [],
-  session: null,
-  me: null, // { id, nome, setor, role, auth_user_id }
+  currentUserId: '',
   busca: '',
   colFilters: { setor: null, criticidade: null, status: null, responsavel_id: null, aberto_por_id: null },
   sort: { col: 'prazo', dir: 'asc' },
@@ -67,8 +66,6 @@ const state = {
   novoComentario: '',
   deleteTarget: null,
   signedUrls: {}, // path -> URL assinada (miniaturas); limpa ao fechar o modal
-  tarefas: [],
-  tarefasCarregadas: false,
 };
 
 // ── Supabase: carregar dados ────────────────────────────────
@@ -86,23 +83,11 @@ async function loadAll() {
     state.problems = pRes.data || [];
     state.pessoas = pesRes.data || [];
     state.setores = setRes.data || [];
+    // Restaura a última pessoa escolhida como autora (vazio se nenhuma)
+    const savedUser = localStorage.getItem('probsys_user');
+    state.currentUserId = savedUser && state.pessoas.find(p => p.id === savedUser) ? savedUser : '';
   } catch (e) {
     showToast('Erro ao carregar dados: ' + e.message, 5000);
-  } finally {
-    showLoading(false);
-    render();
-  }
-}
-
-async function loadTarefas() {
-  showLoading(true);
-  try {
-    const { data, error } = await sb.from('tarefas').select('*').eq('pessoa_id', state.me.id).order('ordem');
-    if (error) throw error;
-    state.tarefas = data || [];
-    state.tarefasCarregadas = true;
-  } catch (e) {
-    showToast('Erro ao carregar tarefas: ' + e.message, 5000);
   } finally {
     showLoading(false);
     render();
@@ -176,53 +161,12 @@ async function uploadAnexo(problemaId, pend) {
   return { path, nome: prep.nome, tipo: prep.tipo, tamanho: prep.blob.size, enviado_em: new Date().toISOString() };
 }
 
-// ── Autenticação ────────────────────────────────────────────
-function isAdmin() { return !!(state.me && state.me.role === 'admin'); }
-
-async function resolveMe(session) {
-  if (!session) return null;
-  const { data, error } = await sb.from('pessoas').select('*').eq('auth_user_id', session.user.id).maybeSingle();
-  if (error || !data) return null;
-  return data;
-}
-
-function renderAuthGate() {
-  const logged = !!state.me;
-  document.getElementById('login-screen').classList.toggle('hidden', logged);
-  document.getElementById('app').classList.toggle('hidden', !logged);
-  if (logged) document.getElementById('header-user-nome').textContent = state.me.nome;
-  document.querySelectorAll('.admin-only').forEach(el => el.classList.toggle('hidden', !isAdmin()));
-}
-
-async function boot() {
-  showLoading(true);
-  const { data: { session } } = await sb.auth.getSession();
-  state.session = session;
-  state.me = await resolveMe(session);
-  if (session && !state.me) {
-    const erroEl = document.getElementById('login-erro');
-    erroEl.textContent = 'Sua conta ainda não foi vinculada a uma pessoa. Fale com o administrador.';
-    erroEl.classList.remove('hidden');
-    await sb.auth.signOut();
-    state.session = null;
-  }
-  renderAuthGate();
-  showLoading(false);
-  if (state.me) loadAll(); // loadAll tem seu próprio showLoading(true/false)
-}
-
-sb.auth.onAuthStateChange((_event, session) => {
-  state.session = session;
-  if (!session) { state.me = null; renderAuthGate(); }
-});
-
 // ── Renderização principal ──────────────────────────────────
 const app = {
 
   // Tabs
   setTab(tab) {
     state.activeTab = tab;
-    if (tab === 'tarefas' && !state.tarefasCarregadas) { loadTarefas(); return; } // loadTarefas() já chama render()
     render();
   },
 
@@ -296,22 +240,10 @@ const app = {
     renderMobileFilters();
   },
 
-  // ── Sessão ─────────────────────────────────────────────────
-  async login() {
-    const nome = document.getElementById('login-nome').value.trim();
-    const senha = document.getElementById('login-senha').value;
-    const erroEl = document.getElementById('login-erro');
-    erroEl.classList.add('hidden');
-    const email = Auth.nomeToEmail(nome);
-    if (!email) { erroEl.textContent = 'Digite seu nome.'; erroEl.classList.remove('hidden'); return; }
-    const { error } = await sb.auth.signInWithPassword({ email, password: senha });
-    if (error) { erroEl.textContent = 'Nome ou senha inválidos.'; erroEl.classList.remove('hidden'); return; }
-    await boot();
-  },
-  async logout() {
-    await sb.auth.signOut();
-    state.me = null;
-    renderAuthGate();
+  // Última pessoa escolhida como autora (comentários e "Aberto por" inicial)
+  setComentarioAutor(id) {
+    state.currentUserId = id;
+    if (id) localStorage.setItem('probsys_user', id);
   },
 
   // ── Modal ──────────────────────────────────────────────────
@@ -320,7 +252,7 @@ const app = {
       mode: 'new',
       draft: {
         titulo: '', descricao: '', setor: '', criticidade: '', status: 'Aberto',
-        responsavel_id: '', aberto_por_id: state.me.id, prazo: '', comentarios: [],
+        responsavel_id: '', aberto_por_id: state.currentUserId, prazo: '', comentarios: [],
         anexos: [], pendentes: [], removidos: [],
       }
     };
@@ -470,9 +402,12 @@ const app = {
     if (!state.modal) return;
     const input = document.getElementById('novo-comentario');
     const texto = input.value.trim();
+    const autor = state.pessoas.find(p => p.id === document.getElementById('comentario-autor').value);
+    if (!autor) { showToast('Escolha quem está comentando.'); return; }
     if (!texto) return;
+    app.setComentarioAutor(autor.id);
     state.modal.draft.comentarios = [
-      { autor: state.me.nome, texto, data: new Date().toISOString().slice(0, 10) },
+      { autor: autor.nome, texto, data: new Date().toISOString().slice(0, 10) },
       ...(state.modal.draft.comentarios || []),
     ];
     input.value = '';
@@ -481,7 +416,7 @@ const app = {
 
   // ── Excluir problema ──────────────────────────────────────
   confirmDelete() {
-    if (!state.modal || !isAdmin()) return;
+    if (!state.modal) return;
     const p = state.problems.find(x => x.id === state.modal.id);
     state.deleteTarget = state.modal.id;
     document.getElementById('confirm-text').textContent =
@@ -512,7 +447,6 @@ const app = {
 
   // ── Setores config ────────────────────────────────────────
   async addSetor() {
-    if (!isAdmin()) return;
     const input = document.getElementById('novo-setor-input');
     const nome = input.value.trim();
     if (!nome || state.setores.find(s => s.nome === nome)) return;
@@ -532,7 +466,6 @@ const app = {
   },
 
   async removeSetor(nome) {
-    if (!isAdmin()) return;
     showLoading(true);
     try {
       await deleteSetorDB(nome);
@@ -547,19 +480,16 @@ const app = {
 
   // ── Pessoas config ────────────────────────────────────────
   async addPessoa() {
-    if (!isAdmin()) return;
     const nome = document.getElementById('nova-pessoa-nome').value.trim();
     const setor = document.getElementById('nova-pessoa-setor').value;
-    const email = document.getElementById('nova-pessoa-email').value.trim();
     if (!nome || !setor) return;
     showLoading(true);
     try {
-      const novo = await upsertPessoa({ id: crypto.randomUUID(), nome, setor, email: email || null });
+      const novo = await upsertPessoa({ id: crypto.randomUUID(), nome, setor });
       state.pessoas.push(novo);
       state.pessoas.sort((a, b) => a.nome.localeCompare(b.nome));
       document.getElementById('nova-pessoa-nome').value = '';
       document.getElementById('nova-pessoa-setor').value = '';
-      document.getElementById('nova-pessoa-email').value = '';
       render();
       showToast('Pessoa adicionada!');
     } catch (e) {
@@ -570,7 +500,6 @@ const app = {
   },
 
   async removePessoa(id) {
-    if (!isAdmin()) return;
     const pessoa = state.pessoas.find(p => p.id === id);
     const afetados = state.problems.filter(p => p.responsavel_id === id && OPEN_STATUSES.includes(p.status));
     if (afetados.length > 0) {
@@ -593,108 +522,12 @@ const app = {
   },
 
   async changePessoaSetor(id, setor) {
-    if (!isAdmin()) return;
     try {
       await sb.from('pessoas').update({ setor }).eq('id', id);
       const idx = state.pessoas.findIndex(p => p.id === id);
       if (idx >= 0) state.pessoas[idx].setor = setor;
     } catch (e) {
       showToast('Erro: ' + e.message, 4000);
-    }
-  },
-
-  async changePessoaRole(id, role) {
-    if (!isAdmin()) return;
-    try {
-      await sb.from('pessoas').update({ role }).eq('id', id);
-      const idx = state.pessoas.findIndex(p => p.id === id);
-      if (idx >= 0) state.pessoas[idx].role = role;
-      if (id === state.me.id) state.me.role = role; // se admin rebaixar a si mesmo
-      renderConfig();
-      renderAuthGate();
-    } catch (e) {
-      showToast('Erro: ' + e.message, 4000);
-    }
-  },
-
-  async changePessoaEmail(id, email) {
-    if (!isAdmin()) return;
-    email = email.trim();
-    try {
-      await sb.from('pessoas').update({ email: email || null }).eq('id', id);
-      const idx = state.pessoas.findIndex(p => p.id === id);
-      if (idx >= 0) state.pessoas[idx].email = email || null;
-    } catch (e) {
-      showToast('Erro: ' + e.message, 4000);
-    }
-  },
-
-  // ── Tarefas diárias ────────────────────────────────────────
-  novaTarefa(rotineira) {
-    const lista = state.tarefas.filter(t => t.rotineira === rotineira).sort((a, b) => a.ordem - b.ordem);
-    const ordem = Tarefas.ordemEntre(lista.length ? lista[lista.length - 1].ordem : null, null);
-    const item = { id: crypto.randomUUID(), pessoa_id: state.me.id, texto: '', rotineira, concluida_em: null, ordem, _novo: true };
-    state.tarefas.push(item);
-    renderTarefas();
-    setTimeout(() => { const el = document.getElementById('tarefa-' + item.id); if (el) el.focus(); }, 0);
-  },
-
-  async salvarTextoTarefa(id, texto) {
-    const t = state.tarefas.find(x => x.id === id);
-    if (!t) return;
-    t.texto = texto;
-    if (!texto.trim()) {
-      if (t._novo) { state.tarefas = state.tarefas.filter(x => x.id !== id); renderTarefas(); }
-      return;
-    }
-    delete t._novo;
-    // Sem renderTarefas() aqui: o DOM já mostra o texto certo (é o que o usuário
-    // digitou); re-renderizar depois do await destruiria o nó recém-focado
-    // (ex.: a linha nova criada pelo Enter), roubando o foco.
-    try {
-      await sb.from('tarefas').upsert({ id: t.id, pessoa_id: t.pessoa_id, texto: t.texto, rotineira: t.rotineira, concluida_em: t.concluida_em, ordem: t.ordem });
-    } catch (e) {
-      showToast('Erro ao salvar tarefa: ' + e.message, 4000);
-    }
-  },
-
-  async toggleTarefa(id) {
-    const t = state.tarefas.find(x => x.id === id);
-    if (!t) return;
-    const feita = Tarefas.estaConcluidaHoje(t);
-    t.concluida_em = feita ? null : Tarefas.todayLocal();
-    renderTarefas();
-    try { await sb.from('tarefas').update({ concluida_em: t.concluida_em }).eq('id', id); }
-    catch (e) { showToast('Erro: ' + e.message, 4000); }
-  },
-
-  async toggleRotineira(id) {
-    const t = state.tarefas.find(x => x.id === id);
-    if (!t) return;
-    t.rotineira = !t.rotineira;
-    renderTarefas();
-    try { await sb.from('tarefas').update({ rotineira: t.rotineira }).eq('id', id); }
-    catch (e) { showToast('Erro: ' + e.message, 4000); }
-  },
-
-  async removeTarefa(id) {
-    state.tarefas = state.tarefas.filter(x => x.id !== id);
-    renderTarefas();
-    try { await sb.from('tarefas').delete().eq('id', id); }
-    catch (e) { showToast('Erro: ' + e.message, 4000); }
-  },
-
-  tarefaKeydown(e, id) {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      const t = state.tarefas.find(x => x.id === id);
-      const rotineira = t ? t.rotineira : false;
-      app.salvarTextoTarefa(id, e.target.value); // sincroniza o texto atual antes de criar a próxima linha
-      app.novaTarefa(rotineira);
-    }
-    if (e.key === 'Backspace' && e.target.value === '') {
-      e.preventDefault();
-      app.removeTarefa(id);
     }
   },
 };
@@ -746,16 +579,21 @@ function render() {
   renderLista();
   renderDashboard();
   renderConfig();
-  renderTarefas();
 }
 
 function renderTabs() {
   const { activeTab } = state;
-  ['lista', 'dashboard', 'config', 'tarefas'].forEach(t => {
+  ['lista', 'dashboard', 'config'].forEach(t => {
     document.getElementById('tab-' + t).classList.toggle('active', activeTab === t);
     document.getElementById('view-' + t).classList.toggle('hidden', activeTab !== t);
   });
   document.getElementById('filters-bar').classList.toggle('hidden', activeTab !== 'lista');
+}
+
+function renderComentarioAutor() {
+  const sel = document.getElementById('comentario-autor');
+  sel.innerHTML = `<option value="">Quem está comentando?</option>` +
+    state.pessoas.map(p => `<option value="${esc(p.id)}" ${p.id === state.currentUserId ? 'selected' : ''}>${esc(p.nome)}</option>`).join('');
 }
 
 const COLS = [
@@ -902,16 +740,14 @@ function renderDashboard() {
 }
 
 function renderConfig() {
-  const admin = isAdmin();
-
   // Setores chips
   document.getElementById('setores-chips').innerHTML = state.setores.map(s => `
     <span class="chip">
       ${esc(s.nome)}
-      ${admin ? `<button class="round-btn" onclick="app.removeSetor('${esc(s.nome)}')" aria-label="Remover setor ${esc(s.nome)}">×</button>` : ''}
+      <button class="round-btn" onclick="app.removeSetor('${esc(s.nome)}')" aria-label="Remover setor ${esc(s.nome)}">×</button>
     </span>`).join('');
 
-  // Select setor config (formulário "Adicionar pessoa", admin-only)
+  // Select setor config
   const novaPessoaSetorSel = document.getElementById('nova-pessoa-setor');
   novaPessoaSetorSel.innerHTML = `<option value="">Setor</option>` +
     state.setores.map(s => `<option value="${esc(s.nome)}">${esc(s.nome)}</option>`).join('');
@@ -921,40 +757,11 @@ function renderConfig() {
     <div class="person-row">
       <span class="avatar">${esc(initials(p.nome))}</span>
       <span class="name">${esc(p.nome)}</span>
-      ${admin ? `
-        <select class="select" onchange="app.changePessoaSetor('${esc(p.id)}',this.value)" aria-label="Setor de ${esc(p.nome)}">
-          ${state.setores.map(s => `<option value="${esc(s.nome)}" ${s.nome === p.setor ? 'selected' : ''}>${esc(s.nome)}</option>`).join('')}
-        </select>
-        <input type="email" class="input" style="width:auto;min-width:170px;" placeholder="E-mail (opcional)" value="${esc(p.email || '')}" onblur="app.changePessoaEmail('${esc(p.id)}', this.value)" aria-label="E-mail de ${esc(p.nome)}">
-        <select class="select" style="width:auto;" onchange="app.changePessoaRole('${esc(p.id)}',this.value)" aria-label="Papel de ${esc(p.nome)}">
-          <option value="membro" ${p.role === 'admin' ? '' : 'selected'}>Membro</option>
-          <option value="admin" ${p.role === 'admin' ? 'selected' : ''}>Admin</option>
-        </select>
-        <button class="round-btn" onclick="app.removePessoa('${esc(p.id)}')" aria-label="Remover ${esc(p.nome)}">×</button>
-      ` : `<span class="muted">${esc(p.setor)}${p.role === 'admin' ? ' · Admin' : ''}</span>`}
+      <select class="select" onchange="app.changePessoaSetor('${esc(p.id)}',this.value)" aria-label="Setor de ${esc(p.nome)}">
+        ${state.setores.map(s => `<option value="${esc(s.nome)}" ${s.nome === p.setor ? 'selected' : ''}>${esc(s.nome)}</option>`).join('')}
+      </select>
+      <button class="round-btn" onclick="app.removePessoa('${esc(p.id)}')" aria-label="Remover ${esc(p.nome)}">×</button>
     </div>`).join('');
-}
-
-function renderTarefaLista(containerId, rotineira) {
-  const itens = state.tarefas.filter(t => t.rotineira === rotineira).sort((a, b) => a.ordem - b.ordem);
-  document.getElementById(containerId).innerHTML = itens.map(t => {
-    const feita = Tarefas.estaConcluidaHoje(t);
-    return `<div class="tarefa-item${feita ? ' feita' : ''}">
-      <input type="checkbox" ${feita ? 'checked' : ''} onchange="app.toggleTarefa('${t.id}')">
-      <input id="tarefa-${t.id}" type="text" value="${esc(t.texto)}" placeholder="Nova tarefa..."
-        onkeydown="app.tarefaKeydown(event,'${t.id}')" onblur="app.salvarTextoTarefa('${t.id}', this.value)">
-      <div class="tarefa-actions">
-        <button type="button" class="${t.rotineira ? 'on' : ''}" title="Rotineira" onclick="app.toggleRotineira('${t.id}')">↻</button>
-        <button type="button" title="Excluir" onclick="app.removeTarefa('${t.id}')">×</button>
-      </div>
-    </div>`;
-  }).join('') + `<button type="button" class="btn btn-secondary btn-sm" style="margin-top:8px;" onclick="app.novaTarefa(${rotineira})">+ Nova tarefa</button>`;
-}
-
-function renderTarefas() {
-  if (!state.me) return;
-  renderTarefaLista('tarefas-rotineiras', true);
-  renderTarefaLista('tarefas-continuas', false);
 }
 
 // ── Modal render ────────────────────────────────────────────
@@ -985,10 +792,13 @@ function renderModal() {
   respSel.innerHTML = `<option value="">Selecione</option>` +
     pessoas.map(p => `<option value="${esc(p.id)}" ${p.id === d.responsavel_id ? 'selected' : ''}>${esc(p.nome)}</option>`).join('');
 
-  // Aberto por (sempre a pessoa logada; nunca editável na tela)
+  // Aberto por (novo)
+  document.getElementById('field-aberto-por').classList.toggle('hidden', isEdit);
+  document.getElementById('info-aberto-por').classList.toggle('hidden', isNew);
   if (isNew) {
-    document.getElementById('info-autor').textContent = state.me.nome;
-    document.getElementById('info-criado').textContent = fmtDate(new Date().toISOString().slice(0, 10));
+    const abertoPorSel = document.getElementById('draft-aberto-por');
+    abertoPorSel.innerHTML = `<option value="">Selecione</option>` +
+      pessoas.map(p => `<option value="${esc(p.id)}" ${p.id === d.aberto_por_id ? 'selected' : ''}>${esc(p.nome)}</option>`).join('');
   } else {
     const abertoPor = pessoas.find(p => p.id === d.aberto_por_id);
     const prob = state.problems.find(x => x.id === modal.id);
@@ -1004,10 +814,10 @@ function renderModal() {
 
   // Histórico
   document.getElementById('historico-section').classList.toggle('hidden', isNew);
-  if (isEdit) renderComentarios();
+  if (isEdit) { renderComentarios(); renderComentarioAutor(); }
 
-  // Botão excluir (só edição e só admin — a trava real é o RLS)
-  document.getElementById('btn-delete').classList.toggle('hidden', isNew || !isAdmin());
+  // Botão excluir
+  document.getElementById('btn-delete').classList.toggle('hidden', isNew);
 
   // Wire up input changes
   document.getElementById('draft-titulo').oninput = e => { modal.draft.titulo = e.target.value; };
@@ -1016,6 +826,7 @@ function renderModal() {
   document.getElementById('draft-criticidade').onchange = e => { modal.draft.criticidade = e.target.value; };
   document.getElementById('draft-responsavel').onchange = e => { modal.draft.responsavel_id = e.target.value; };
   document.getElementById('draft-prazo').onchange = e => { modal.draft.prazo = e.target.value; };
+  if (isNew) document.getElementById('draft-aberto-por').onchange = e => { modal.draft.aberto_por_id = e.target.value; };
 }
 
 function renderStatusPills() {
@@ -1100,4 +911,4 @@ document.addEventListener('keydown', (e) => {
 
 // ── Init ────────────────────────────────────────────────────
 document.getElementById('anexos-input').accept = Anexos.ACCEPT;
-boot();
+loadAll();
