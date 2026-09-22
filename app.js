@@ -55,7 +55,8 @@ const state = {
   problems: [],
   pessoas: [],
   setores: [],
-  currentUserId: '',
+  session: null,
+  me: null, // { id, nome, setor, role, auth_user_id }
   busca: '',
   colFilters: { setor: null, criticidade: null, status: null, responsavel_id: null, aberto_por_id: null },
   sort: { col: 'prazo', dir: 'asc' },
@@ -83,9 +84,6 @@ async function loadAll() {
     state.problems = pRes.data || [];
     state.pessoas = pesRes.data || [];
     state.setores = setRes.data || [];
-    // Restaura a última pessoa escolhida como autora (vazio se nenhuma)
-    const savedUser = localStorage.getItem('probsys_user');
-    state.currentUserId = savedUser && state.pessoas.find(p => p.id === savedUser) ? savedUser : '';
   } catch (e) {
     showToast('Erro ao carregar dados: ' + e.message, 5000);
   } finally {
@@ -160,6 +158,46 @@ async function uploadAnexo(problemaId, pend) {
   if (error) throw error;
   return { path, nome: prep.nome, tipo: prep.tipo, tamanho: prep.blob.size, enviado_em: new Date().toISOString() };
 }
+
+// ── Autenticação ────────────────────────────────────────────
+function isAdmin() { return !!(state.me && state.me.role === 'admin'); }
+
+async function resolveMe(session) {
+  if (!session) return null;
+  const { data, error } = await sb.from('pessoas').select('*').eq('auth_user_id', session.user.id).maybeSingle();
+  if (error || !data) return null;
+  return data;
+}
+
+function renderAuthGate() {
+  const logged = !!state.me;
+  document.getElementById('login-screen').classList.toggle('hidden', logged);
+  document.getElementById('app').classList.toggle('hidden', !logged);
+  if (logged) document.getElementById('header-user-nome').textContent = state.me.nome;
+  document.querySelectorAll('.admin-only').forEach(el => el.classList.toggle('hidden', !isAdmin()));
+}
+
+async function boot() {
+  showLoading(true);
+  const { data: { session } } = await sb.auth.getSession();
+  state.session = session;
+  state.me = await resolveMe(session);
+  if (session && !state.me) {
+    const erroEl = document.getElementById('login-erro');
+    erroEl.textContent = 'Sua conta ainda não foi vinculada a uma pessoa. Fale com o administrador.';
+    erroEl.classList.remove('hidden');
+    await sb.auth.signOut();
+    state.session = null;
+  }
+  renderAuthGate();
+  showLoading(false);
+  if (state.me) loadAll(); // loadAll tem seu próprio showLoading(true/false)
+}
+
+sb.auth.onAuthStateChange((_event, session) => {
+  state.session = session;
+  if (!session) { state.me = null; renderAuthGate(); }
+});
 
 // ── Renderização principal ──────────────────────────────────
 const app = {
@@ -240,10 +278,26 @@ const app = {
     renderMobileFilters();
   },
 
-  // Última pessoa escolhida como autora (comentários e "Aberto por" inicial)
-  setComentarioAutor(id) {
-    state.currentUserId = id;
-    if (id) localStorage.setItem('probsys_user', id);
+  // ── Sessão ─────────────────────────────────────────────────
+  async login() {
+    const email = document.getElementById('login-email').value.trim();
+    const senha = document.getElementById('login-senha').value;
+    const erroEl = document.getElementById('login-erro');
+    erroEl.classList.add('hidden');
+    const { error } = await sb.auth.signInWithPassword({ email, password: senha });
+    if (error) { erroEl.textContent = 'E-mail ou senha inválidos.'; erroEl.classList.remove('hidden'); return; }
+    await boot();
+  },
+  async logout() {
+    await sb.auth.signOut();
+    state.me = null;
+    renderAuthGate();
+  },
+  async forgotPassword() {
+    const email = document.getElementById('login-email').value.trim();
+    if (!email) { showToast('Digite seu e-mail no campo acima primeiro.'); return; }
+    await sb.auth.resetPasswordForEmail(email);
+    showToast('Se esse e-mail tiver conta, chegou um link para redefinir a senha.');
   },
 
   // ── Modal ──────────────────────────────────────────────────
@@ -252,7 +306,7 @@ const app = {
       mode: 'new',
       draft: {
         titulo: '', descricao: '', setor: '', criticidade: '', status: 'Aberto',
-        responsavel_id: '', aberto_por_id: state.currentUserId, prazo: '', comentarios: [],
+        responsavel_id: '', aberto_por_id: state.me.id, prazo: '', comentarios: [],
         anexos: [], pendentes: [], removidos: [],
       }
     };
@@ -402,12 +456,9 @@ const app = {
     if (!state.modal) return;
     const input = document.getElementById('novo-comentario');
     const texto = input.value.trim();
-    const autor = state.pessoas.find(p => p.id === document.getElementById('comentario-autor').value);
-    if (!autor) { showToast('Escolha quem está comentando.'); return; }
     if (!texto) return;
-    app.setComentarioAutor(autor.id);
     state.modal.draft.comentarios = [
-      { autor: autor.nome, texto, data: new Date().toISOString().slice(0, 10) },
+      { autor: state.me.nome, texto, data: new Date().toISOString().slice(0, 10) },
       ...(state.modal.draft.comentarios || []),
     ];
     input.value = '';
@@ -416,7 +467,7 @@ const app = {
 
   // ── Excluir problema ──────────────────────────────────────
   confirmDelete() {
-    if (!state.modal) return;
+    if (!state.modal || !isAdmin()) return;
     const p = state.problems.find(x => x.id === state.modal.id);
     state.deleteTarget = state.modal.id;
     document.getElementById('confirm-text').textContent =
@@ -447,6 +498,7 @@ const app = {
 
   // ── Setores config ────────────────────────────────────────
   async addSetor() {
+    if (!isAdmin()) return;
     const input = document.getElementById('novo-setor-input');
     const nome = input.value.trim();
     if (!nome || state.setores.find(s => s.nome === nome)) return;
@@ -466,6 +518,7 @@ const app = {
   },
 
   async removeSetor(nome) {
+    if (!isAdmin()) return;
     showLoading(true);
     try {
       await deleteSetorDB(nome);
@@ -480,6 +533,7 @@ const app = {
 
   // ── Pessoas config ────────────────────────────────────────
   async addPessoa() {
+    if (!isAdmin()) return;
     const nome = document.getElementById('nova-pessoa-nome').value.trim();
     const setor = document.getElementById('nova-pessoa-setor').value;
     if (!nome || !setor) return;
@@ -500,6 +554,7 @@ const app = {
   },
 
   async removePessoa(id) {
+    if (!isAdmin()) return;
     const pessoa = state.pessoas.find(p => p.id === id);
     const afetados = state.problems.filter(p => p.responsavel_id === id && OPEN_STATUSES.includes(p.status));
     if (afetados.length > 0) {
@@ -522,10 +577,25 @@ const app = {
   },
 
   async changePessoaSetor(id, setor) {
+    if (!isAdmin()) return;
     try {
       await sb.from('pessoas').update({ setor }).eq('id', id);
       const idx = state.pessoas.findIndex(p => p.id === id);
       if (idx >= 0) state.pessoas[idx].setor = setor;
+    } catch (e) {
+      showToast('Erro: ' + e.message, 4000);
+    }
+  },
+
+  async changePessoaRole(id, role) {
+    if (!isAdmin()) return;
+    try {
+      await sb.from('pessoas').update({ role }).eq('id', id);
+      const idx = state.pessoas.findIndex(p => p.id === id);
+      if (idx >= 0) state.pessoas[idx].role = role;
+      if (id === state.me.id) state.me.role = role; // se admin rebaixar a si mesmo
+      renderConfig();
+      renderAuthGate();
     } catch (e) {
       showToast('Erro: ' + e.message, 4000);
     }
@@ -588,12 +658,6 @@ function renderTabs() {
     document.getElementById('view-' + t).classList.toggle('hidden', activeTab !== t);
   });
   document.getElementById('filters-bar').classList.toggle('hidden', activeTab !== 'lista');
-}
-
-function renderComentarioAutor() {
-  const sel = document.getElementById('comentario-autor');
-  sel.innerHTML = `<option value="">Quem está comentando?</option>` +
-    state.pessoas.map(p => `<option value="${esc(p.id)}" ${p.id === state.currentUserId ? 'selected' : ''}>${esc(p.nome)}</option>`).join('');
 }
 
 const COLS = [
@@ -740,14 +804,16 @@ function renderDashboard() {
 }
 
 function renderConfig() {
+  const admin = isAdmin();
+
   // Setores chips
   document.getElementById('setores-chips').innerHTML = state.setores.map(s => `
     <span class="chip">
       ${esc(s.nome)}
-      <button class="round-btn" onclick="app.removeSetor('${esc(s.nome)}')" aria-label="Remover setor ${esc(s.nome)}">×</button>
+      ${admin ? `<button class="round-btn" onclick="app.removeSetor('${esc(s.nome)}')" aria-label="Remover setor ${esc(s.nome)}">×</button>` : ''}
     </span>`).join('');
 
-  // Select setor config
+  // Select setor config (formulário "Adicionar pessoa", admin-only)
   const novaPessoaSetorSel = document.getElementById('nova-pessoa-setor');
   novaPessoaSetorSel.innerHTML = `<option value="">Setor</option>` +
     state.setores.map(s => `<option value="${esc(s.nome)}">${esc(s.nome)}</option>`).join('');
@@ -757,10 +823,16 @@ function renderConfig() {
     <div class="person-row">
       <span class="avatar">${esc(initials(p.nome))}</span>
       <span class="name">${esc(p.nome)}</span>
-      <select class="select" onchange="app.changePessoaSetor('${esc(p.id)}',this.value)" aria-label="Setor de ${esc(p.nome)}">
-        ${state.setores.map(s => `<option value="${esc(s.nome)}" ${s.nome === p.setor ? 'selected' : ''}>${esc(s.nome)}</option>`).join('')}
-      </select>
-      <button class="round-btn" onclick="app.removePessoa('${esc(p.id)}')" aria-label="Remover ${esc(p.nome)}">×</button>
+      ${admin ? `
+        <select class="select" onchange="app.changePessoaSetor('${esc(p.id)}',this.value)" aria-label="Setor de ${esc(p.nome)}">
+          ${state.setores.map(s => `<option value="${esc(s.nome)}" ${s.nome === p.setor ? 'selected' : ''}>${esc(s.nome)}</option>`).join('')}
+        </select>
+        <select class="select" style="width:auto;" onchange="app.changePessoaRole('${esc(p.id)}',this.value)" aria-label="Papel de ${esc(p.nome)}">
+          <option value="membro" ${p.role === 'admin' ? '' : 'selected'}>Membro</option>
+          <option value="admin" ${p.role === 'admin' ? 'selected' : ''}>Admin</option>
+        </select>
+        <button class="round-btn" onclick="app.removePessoa('${esc(p.id)}')" aria-label="Remover ${esc(p.nome)}">×</button>
+      ` : `<span class="muted">${esc(p.setor)}${p.role === 'admin' ? ' · Admin' : ''}</span>`}
     </div>`).join('');
 }
 
@@ -792,13 +864,10 @@ function renderModal() {
   respSel.innerHTML = `<option value="">Selecione</option>` +
     pessoas.map(p => `<option value="${esc(p.id)}" ${p.id === d.responsavel_id ? 'selected' : ''}>${esc(p.nome)}</option>`).join('');
 
-  // Aberto por (novo)
-  document.getElementById('field-aberto-por').classList.toggle('hidden', isEdit);
-  document.getElementById('info-aberto-por').classList.toggle('hidden', isNew);
+  // Aberto por (sempre a pessoa logada; nunca editável na tela)
   if (isNew) {
-    const abertoPorSel = document.getElementById('draft-aberto-por');
-    abertoPorSel.innerHTML = `<option value="">Selecione</option>` +
-      pessoas.map(p => `<option value="${esc(p.id)}" ${p.id === d.aberto_por_id ? 'selected' : ''}>${esc(p.nome)}</option>`).join('');
+    document.getElementById('info-autor').textContent = state.me.nome;
+    document.getElementById('info-criado').textContent = fmtDate(new Date().toISOString().slice(0, 10));
   } else {
     const abertoPor = pessoas.find(p => p.id === d.aberto_por_id);
     const prob = state.problems.find(x => x.id === modal.id);
@@ -814,10 +883,10 @@ function renderModal() {
 
   // Histórico
   document.getElementById('historico-section').classList.toggle('hidden', isNew);
-  if (isEdit) { renderComentarios(); renderComentarioAutor(); }
+  if (isEdit) renderComentarios();
 
-  // Botão excluir
-  document.getElementById('btn-delete').classList.toggle('hidden', isNew);
+  // Botão excluir (só edição e só admin — a trava real é o RLS)
+  document.getElementById('btn-delete').classList.toggle('hidden', isNew || !isAdmin());
 
   // Wire up input changes
   document.getElementById('draft-titulo').oninput = e => { modal.draft.titulo = e.target.value; };
@@ -826,7 +895,6 @@ function renderModal() {
   document.getElementById('draft-criticidade').onchange = e => { modal.draft.criticidade = e.target.value; };
   document.getElementById('draft-responsavel').onchange = e => { modal.draft.responsavel_id = e.target.value; };
   document.getElementById('draft-prazo').onchange = e => { modal.draft.prazo = e.target.value; };
-  if (isNew) document.getElementById('draft-aberto-por').onchange = e => { modal.draft.aberto_por_id = e.target.value; };
 }
 
 function renderStatusPills() {
@@ -911,4 +979,4 @@ document.addEventListener('keydown', (e) => {
 
 // ── Init ────────────────────────────────────────────────────
 document.getElementById('anexos-input').accept = Anexos.ACCEPT;
-loadAll();
+boot();
