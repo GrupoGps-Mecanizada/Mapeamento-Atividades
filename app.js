@@ -190,7 +190,12 @@ function renderAuthGate() {
   const logged = !!state.me;
   document.getElementById('login-screen').classList.toggle('hidden', logged);
   document.getElementById('app').classList.toggle('hidden', !logged);
-  if (logged) document.getElementById('header-user-nome').textContent = state.me.nome;
+  if (logged) {
+    document.getElementById('header-user-nome').textContent = state.me.nome;
+  } else {
+    document.getElementById('signup-form').classList.add('hidden');
+    document.getElementById('login-form').classList.remove('hidden');
+  }
   document.querySelectorAll('.admin-only').forEach(el => el.classList.toggle('hidden', !isAdmin()));
 }
 
@@ -316,6 +321,48 @@ const app = {
     if (!email) { showToast('Digite seu e-mail no campo acima primeiro.'); return; }
     await sb.auth.resetPasswordForEmail(email);
     showToast('Se esse e-mail tiver conta, chegou um link para redefinir a senha.');
+  },
+
+  showSignup() {
+    document.getElementById('login-form').classList.add('hidden');
+    document.getElementById('signup-form').classList.remove('hidden');
+  },
+  showLogin() {
+    document.getElementById('signup-form').classList.add('hidden');
+    document.getElementById('login-form').classList.remove('hidden');
+  },
+  async signup() {
+    const nome = document.getElementById('signup-nome').value.trim();
+    const email = document.getElementById('signup-email').value.trim();
+    const senha = document.getElementById('signup-senha').value;
+    const msgEl = document.getElementById('signup-msg');
+    msgEl.classList.add('hidden');
+    if (!nome) { showToast('Digite seu nome.'); return; }
+    if (!Auth.isCompanyEmail(email)) {
+      msgEl.textContent = `Use seu e-mail da empresa (${Auth.COMPANY_DOMAINS.map(d => '@' + d).join(' ou ')}).`;
+      msgEl.style.color = 'var(--danger)';
+      msgEl.classList.remove('hidden');
+      return;
+    }
+    if (senha.length < 6) {
+      msgEl.textContent = 'A senha precisa ter pelo menos 6 caracteres.';
+      msgEl.style.color = 'var(--danger)';
+      msgEl.classList.remove('hidden');
+      return;
+    }
+    showLoading(true, 'Criando conta...');
+    const { data, error } = await sb.auth.signUp({ email, password: senha, options: { data: { nome } } });
+    showLoading(false);
+    if (error) {
+      msgEl.textContent = 'Não foi possível criar a conta: ' + error.message;
+      msgEl.style.color = 'var(--danger)';
+      msgEl.classList.remove('hidden');
+      return;
+    }
+    if (data.session) { await boot(); return; } // confirmação de e-mail desativada: já entra direto
+    msgEl.textContent = `Conta criada! Verifique ${email} para confirmar antes de entrar.`;
+    msgEl.style.color = 'var(--brand)';
+    msgEl.classList.remove('hidden');
   },
 
   // ── Modal ──────────────────────────────────────────────────
@@ -554,14 +601,16 @@ const app = {
     if (!isAdmin()) return;
     const nome = document.getElementById('nova-pessoa-nome').value.trim();
     const setor = document.getElementById('nova-pessoa-setor').value;
+    const email = document.getElementById('nova-pessoa-email').value.trim();
     if (!nome || !setor) return;
     showLoading(true);
     try {
-      const novo = await upsertPessoa({ id: crypto.randomUUID(), nome, setor });
+      const novo = await upsertPessoa({ id: crypto.randomUUID(), nome, setor, email: email || null });
       state.pessoas.push(novo);
       state.pessoas.sort((a, b) => a.nome.localeCompare(b.nome));
       document.getElementById('nova-pessoa-nome').value = '';
       document.getElementById('nova-pessoa-setor').value = '';
+      document.getElementById('nova-pessoa-email').value = '';
       render();
       showToast('Pessoa adicionada!');
     } catch (e) {
@@ -614,6 +663,18 @@ const app = {
       if (id === state.me.id) state.me.role = role; // se admin rebaixar a si mesmo
       renderConfig();
       renderAuthGate();
+    } catch (e) {
+      showToast('Erro: ' + e.message, 4000);
+    }
+  },
+
+  async changePessoaEmail(id, email) {
+    if (!isAdmin()) return;
+    email = email.trim();
+    try {
+      await sb.from('pessoas').update({ email: email || null }).eq('id', id);
+      const idx = state.pessoas.findIndex(p => p.id === id);
+      if (idx >= 0) state.pessoas[idx].email = email || null;
     } catch (e) {
       showToast('Erro: ' + e.message, 4000);
     }
@@ -915,6 +976,7 @@ function renderConfig() {
         <select class="select" onchange="app.changePessoaSetor('${esc(p.id)}',this.value)" aria-label="Setor de ${esc(p.nome)}">
           ${state.setores.map(s => `<option value="${esc(s.nome)}" ${s.nome === p.setor ? 'selected' : ''}>${esc(s.nome)}</option>`).join('')}
         </select>
+        <input type="email" class="input" style="width:auto;min-width:170px;" placeholder="E-mail (opcional)" value="${esc(p.email || '')}" onblur="app.changePessoaEmail('${esc(p.id)}', this.value)" aria-label="E-mail de ${esc(p.nome)}">
         <select class="select" style="width:auto;" onchange="app.changePessoaRole('${esc(p.id)}',this.value)" aria-label="Papel de ${esc(p.nome)}">
           <option value="membro" ${p.role === 'admin' ? '' : 'selected'}>Membro</option>
           <option value="admin" ${p.role === 'admin' ? 'selected' : ''}>Admin</option>
