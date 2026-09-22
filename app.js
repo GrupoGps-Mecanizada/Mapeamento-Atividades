@@ -688,6 +688,13 @@ function visibleFilterOptions(col) {
 
 const FILTER_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16l-6 8v5l-4 2v-7z"/></svg>';
 
+function tarefaIconSvg(paths) {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
+}
+const ICON_REPEAT = tarefaIconSvg('<polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>');
+const ICON_X = tarefaIconSvg('<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>');
+const ICON_PLUS = tarefaIconSvg('<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>');
+
 function getFiltered() {
   const rows = buscaFiltrada(state.problems, state.busca).map(p => getEnriched(p));
   const filtered = Tabela.applyColFilters(rows, state.colFilters);
@@ -919,20 +926,26 @@ function renderConfig() {
     </div>`).join('');
 }
 
-function renderTarefaLista(containerId, rotineira) {
+function renderTarefaLista(containerId, countId, rotineira) {
   const itens = state.tarefas.filter(t => t.rotineira === rotineira).sort((a, b) => a.ordem - b.ordem);
-  document.getElementById(containerId).innerHTML = itens.map(t => {
+  const feitas = itens.filter(t => Tarefas.estaConcluidaHoje(t)).length;
+  document.getElementById(countId).textContent = itens.length ? `${feitas}/${itens.length}` : '';
+
+  const rows = itens.map(t => {
     const feita = Tarefas.estaConcluidaHoje(t);
     return `<div class="tarefa-item${feita ? ' feita' : ''}">
-      <input type="checkbox" ${feita ? 'checked' : ''} onchange="app.toggleTarefa('${t.id}')">
+      <input type="checkbox" class="tarefa-check" ${feita ? 'checked' : ''} onchange="app.toggleTarefa('${t.id}')" aria-label="Marcar como feita">
       <input id="tarefa-${t.id}" type="text" value="${esc(t.texto)}" placeholder="Nova tarefa..."
         onkeydown="app.tarefaKeydown(event,'${t.id}')" onblur="app.salvarTextoTarefa('${t.id}', this.value)">
       <div class="tarefa-actions">
-        <button type="button" class="${t.rotineira ? 'on' : ''}" title="Rotineira" onclick="app.toggleRotineira('${t.id}')">↻</button>
-        <button type="button" title="Excluir" onclick="app.removeTarefa('${t.id}')">×</button>
+        <button type="button" class="${t.rotineira ? 'on' : ''}" title="Rotineira" aria-label="Tornar rotineira" onclick="app.toggleRotineira('${t.id}')">${ICON_REPEAT}</button>
+        <button type="button" title="Excluir" aria-label="Excluir tarefa" onclick="app.removeTarefa('${t.id}')">${ICON_X}</button>
       </div>
     </div>`;
-  }).join('') + `<button type="button" class="btn btn-secondary btn-sm" style="margin-top:8px;" onclick="app.novaTarefa(${rotineira})">+ Nova tarefa</button>`;
+  }).join('');
+  const vazio = itens.length === 0 ? '<div class="tarefa-empty">Nada por aqui ainda.</div>' : '';
+  document.getElementById(containerId).innerHTML = rows + vazio +
+    `<button type="button" class="tarefa-add" onclick="app.novaTarefa(${rotineira})">${ICON_PLUS}Nova tarefa</button>`;
 }
 
 function renderTarefas() {
@@ -940,8 +953,10 @@ function renderTarefas() {
   document.getElementById('tarefas-sem-pessoa').classList.toggle('hidden', !semPessoa);
   document.getElementById('tarefas-conteudo').classList.toggle('hidden', semPessoa);
   if (semPessoa) return;
-  renderTarefaLista('tarefas-rotineiras', true);
-  renderTarefaLista('tarefas-continuas', false);
+  const dataFmt = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date());
+  document.getElementById('tarefas-data').textContent = dataFmt.charAt(0).toUpperCase() + dataFmt.slice(1);
+  renderTarefaLista('tarefas-rotineiras', 'tarefas-rotineiras-count', true);
+  renderTarefaLista('tarefas-continuas', 'tarefas-continuas-count', false);
 }
 
 // ── Modal render ────────────────────────────────────────────
