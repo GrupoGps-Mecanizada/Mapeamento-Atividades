@@ -1,20 +1,20 @@
 # MAPEAMENTO DE ATIVIDADES — Grupo GPS Mecanizada
 
-Sistema web para mapeamento de atividades e gestão de problemas operacionais. Permite registrar, acompanhar e resolver problemas por setor, criticidade e responsável, com anexos de imagens e documentos, tarefas diárias pessoais e login por conta.
+Sistema web para mapeamento de atividades e gestão de problemas operacionais. Permite registrar, acompanhar e resolver problemas por setor, criticidade e responsável, com anexos de imagens e documentos.
 
 ## Funcionalidades
 
-- 🔐 **Login** por nome e senha (Supabase Auth por baixo dos panos), com papéis **membro** e **admin**
 - 📋 **Lista de problemas** com filtro estilo Excel (por coluna, com contagem) e ordenação por clique no cabeçalho
 - 📊 **Dashboard** com KPIs e gráficos de barras por setor/criticidade
 - ✅ **Ciclo de vida completo**: Aberto → Em andamento → Aguardando terceiros → Resolvido / Cancelado
-- 💬 **Histórico de comentários** por problema (autor é sempre a pessoa logada)
+- 💬 **Histórico de comentários** por problema
 - 📎 **Anexos** de imagens e documentos (JPG, PNG, WebP, PDF, Word, Excel, PowerPoint e TXT; até 10 MB cada, no máximo 10 por problema)
-- ✔️ **Tarefas diárias** pessoais, com itens rotineiros (desmarcam sozinhos todo dia) e contínuos
 - 📱 **Interface responsiva** para celular (lista em cartões, formulário em tela cheia, botão flutuante)
-- 🗑️ **Excluir problemas** com confirmação — só admin (os anexos também são removidos)
-- ⚙️ **Configuração** de setores e pessoas — só admin edita; qualquer pessoa logada visualiza
+- 🗑️ **Excluir problemas** com confirmação
+- ⚙️ **Configuração** de setores e pessoas
 - ☁️ **Persistência em tempo real** via Supabase
+
+> **Login e tarefas diárias:** foram desenvolvidos (telas, banco, testes) mas estão pausados por enquanto — a interface atual não os usa, para o time finalizar outros ajustes primeiro. Nada foi apagado: veja "Login e contas (pausado)" abaixo para retomar quando quiser.
 
 ## Tecnologias
 
@@ -26,16 +26,18 @@ Sistema web para mapeamento de atividades e gestão de problemas operacionais. P
 
 ```
 problemas  → id, titulo, descricao, setor, criticidade, status, responsavel_id, aberto_por_id, criado_em, prazo, comentarios (JSONB), anexos (JSONB)
-pessoas    → id, nome, setor, email, auth_user_id (liga à conta de login), role (membro | admin)
+pessoas    → id, nome, setor, email, auth_user_id, role (membro | admin)  — as 3 últimas colunas existem no banco mas a interface atual não as usa (ver "Login e contas (pausado)")
 setores    → id, nome
-tarefas    → id, pessoa_id, texto, rotineira, concluida_em, ordem, criado_em
+tarefas    → id, pessoa_id, texto, rotineira, concluida_em, ordem, criado_em  — tabela existe no banco, sem aba correspondente na interface atual
 ```
 
 Storage: bucket privado `anexos-problemas` (limite de 10 MB por arquivo, tipos restritos no servidor). Os arquivos ficam em `<id do problema>/<uuid>-<nome>` e são abertos por links temporários de 1 hora.
 
 As migrações (em ordem) estão em `supabase/migrations/`. Precisam estar aplicadas no projeto Supabase antes de publicar a versão do app que as usa.
 
-## Login e contas
+## Login e contas (pausado)
+
+Esta seção descreve um sistema de login já construído (banco, tela, testes) mas que **não está ligado na interface atual** — `index.html`/`app.js` hoje funcionam sem exigir login, do jeito que estavam antes. Os arquivos continuam no repositório (`auth.js`, `tarefas.js`, as migrações em `supabase/migrations/20260922*`) prontos para retomar; é só pedir.
 
 Não existe autocadastro — o **admin cria cada conta** direto no painel do Supabase (Authentication → Users → Add user):
 
@@ -55,7 +57,7 @@ O app já está configurado para conectar ao Supabase do projeto Grupo GPS.
 
 ## Testes
 
-As funções puras (anexos, filtro/ordenação da tabela, tarefas diárias, montagem do e-mail de login) têm testes com o runner nativo do Node (18+):
+As funções puras (anexos, filtro/ordenação da tabela) têm testes com o runner nativo do Node (18+). Os módulos de tarefas e login (`tarefas.js`, `auth.js`) também têm testes, mesmo não estando ligados na interface atual:
 
 ```
 node --test
