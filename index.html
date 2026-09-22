@@ -102,6 +102,28 @@
     .crit-alta{background:var(--crit-alta-bg);color:var(--crit-alta-fg)}
     .badge-neutral{background:#EDF0F3;color:var(--text-2)}
 
+    .th{position:relative}
+    .th-inner{display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none}
+    .th-inner:hover{opacity:.85}
+    .sort-ind{font-size:10px;opacity:.9}
+    .filter-icon{border:0;background:rgba(255,255,255,.18);color:#fff;width:22px;height:22px;border-radius:5px;font-size:11px;cursor:pointer;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center}
+    .filter-icon.active{background:#fff;color:var(--brand)}
+    .col-filter-panel{position:absolute;top:100%;left:0;margin-top:4px;background:#fff;color:var(--text);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);width:220px;z-index:60;font-weight:400;text-transform:none;letter-spacing:normal}
+    .col-filter-panel .cf-actions{display:flex;justify-content:space-between;padding:8px 10px;border-bottom:1px solid var(--border);font-size:12px}
+    .col-filter-panel .cf-actions button{background:none;border:0;color:var(--brand);cursor:pointer;font-size:12px;font-weight:700}
+    .col-filter-panel .cf-list{max-height:220px;overflow-y:auto;padding:6px 0}
+    .cf-item{display:flex;align-items:center;gap:8px;padding:6px 12px;font-size:13px;cursor:pointer}
+    .cf-item:hover{background:var(--bg)}
+    .cf-item .cf-count{margin-left:auto;color:var(--text-2);font-size:11px}
+    .cf-buttons{display:flex;gap:8px;padding:10px;border-top:1px solid var(--border)}
+    .cf-buttons .btn{flex:1}
+    #btn-filtros-mobile{display:none}
+    .mobile-filters-overlay{position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:80;display:flex;align-items:flex-end}
+    .mobile-filters-overlay.hidden{display:none}
+    .mobile-filters{background:#fff;border-radius:16px 16px 0 0;max-height:85vh;overflow-y:auto;width:100%;padding:16px}
+    .mf-section{border-bottom:1px solid var(--border);padding:12px 0}
+    .mf-section-title{font-weight:700;font-size:14px;margin-bottom:8px}
+
     .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px}
     .kpi{padding:20px}
     .kpi-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-2)}
@@ -184,6 +206,7 @@
       .tab{min-height:44px}
       .filters{flex-direction:column;margin:16px 0}
       .filters .select{width:100%;min-width:0}
+      #btn-filtros-mobile{display:block;width:100%}
 
       .table-card{border:0;background:transparent;overflow:visible}
       .table thead{display:none}
@@ -275,18 +298,7 @@
 
     <!-- Filtros (lista) -->
     <div id="filters-bar" class="filters">
-      <select id="filter-setor" class="select" onchange="app.setFilter('setor',this.value)">
-        <option value="todos">Todos os setores</option>
-      </select>
-      <select id="filter-criticidade" class="select" onchange="app.setFilter('criticidade',this.value)">
-        <option value="todos">Todas as criticidades</option>
-        <option value="Alta">Alta</option>
-        <option value="Média">Média</option>
-        <option value="Baixa">Baixa</option>
-      </select>
-      <select id="filter-responsavel" class="select" onchange="app.setFilter('responsavel',this.value)">
-        <option value="todos">Todos os responsáveis</option>
-      </select>
+      <button id="btn-filtros-mobile" class="btn btn-secondary" onclick="app.openMobileFilters()">Filtros</button>
     </div>
   </div>
 
@@ -297,15 +309,7 @@
       <div class="card table-card">
         <table class="table">
           <thead>
-            <tr>
-              <th>Título</th>
-              <th>Setor</th>
-              <th>Criticidade</th>
-              <th>Responsável</th>
-              <th>Status</th>
-              <th>Prazo ↑</th>
-              <th>Aberto por</th>
-            </tr>
+            <tr id="thead-row"></tr>
           </thead>
           <tbody id="lista-tbody"></tbody>
         </table>
@@ -455,6 +459,22 @@
   </div>
 </div>
 
+<!-- FILTROS (CELULAR) -->
+<div id="mobile-filters-overlay" class="mobile-filters-overlay hidden" onclick="app.closeMobileFilters()">
+  <div class="mobile-filters" onclick="event.stopPropagation()">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <strong>Filtros e ordenação</strong>
+      <button class="icon-btn" onclick="app.closeMobileFilters()" aria-label="Fechar">×</button>
+    </div>
+    <div id="mobile-filters-body"></div>
+    <div class="inline-form" style="margin-top:12px;">
+      <button class="btn btn-secondary" onclick="app.clearAllFilters()">Limpar filtros</button>
+      <button class="btn btn-primary" onclick="app.closeMobileFilters()">Aplicar</button>
+    </div>
+  </div>
+</div>
+
+<script src="tabela.js"></script>
 <script src="anexos.js"></script>
 <script src="app.js"></script>
 </body>

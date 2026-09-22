@@ -57,7 +57,10 @@ const state = {
   setores: [],
   currentUserId: '',
   busca: '',
-  filters: { setor: 'todos', criticidade: 'todos', responsavel: 'todos' },
+  colFilters: { setor: null, criticidade: null, status: null, responsavel_id: null, aberto_por_id: null },
+  sort: { col: 'prazo', dir: 'asc' },
+  openFilterPanel: null,
+  filterDraft: null,
   activeTab: 'lista',
   modal: null, // { mode: 'new'|'edit', id?, draft: {} }
   novoComentario: '',
@@ -173,10 +176,68 @@ const app = {
     render();
   },
 
-  // Filtros
-  setFilter(key, val) {
-    state.filters[key] = val;
-    render();
+  // Filtros/ordenação estilo Excel
+  toggleSort(col) {
+    if (state.sort.col === col) state.sort.dir = state.sort.dir === 'asc' ? 'desc' : 'asc';
+    else state.sort = { col, dir: 'asc' };
+    renderLista();
+  },
+  openFilterPanel(col) {
+    const total = Tabela.buildFilterOptions(rowsForFilterOptions(col), col).map(o => o.value);
+    state.openFilterPanel = col;
+    state.filterDraft = state.colFilters[col] ? new Set(state.colFilters[col]) : new Set(total);
+    renderLista();
+  },
+  closeFilterPanel() {
+    state.openFilterPanel = null;
+    state.filterDraft = null;
+    renderLista();
+  },
+  cancelFilterPanel() { app.closeFilterPanel(); },
+  toggleFilterOption(col, value) {
+    if (state.filterDraft.has(value)) state.filterDraft.delete(value); else state.filterDraft.add(value);
+    renderLista();
+  },
+  filterSelectAll(col) {
+    state.filterDraft = new Set(Tabela.buildFilterOptions(rowsForFilterOptions(col), col).map(o => o.value));
+    renderLista();
+  },
+  filterClear() {
+    state.filterDraft = new Set();
+    renderLista();
+  },
+  applyFilterPanel() {
+    const col = state.openFilterPanel;
+    const total = Tabela.buildFilterOptions(rowsForFilterOptions(col), col).length;
+    state.colFilters[col] = state.filterDraft.size === total ? null : new Set(state.filterDraft);
+    state.openFilterPanel = null;
+    state.filterDraft = null;
+    renderLista();
+  },
+  clearAllFilters() {
+    Object.keys(state.colFilters).forEach(k => { state.colFilters[k] = null; });
+    renderLista();
+    if (!document.getElementById('mobile-filters-overlay').classList.contains('hidden')) renderMobileFilters();
+  },
+  openMobileFilters() {
+    renderMobileFilters();
+    document.getElementById('mobile-filters-overlay').classList.remove('hidden');
+  },
+  closeMobileFilters() {
+    document.getElementById('mobile-filters-overlay').classList.add('hidden');
+  },
+  toggleMobileFilterOption(col, value) {
+    const opts = Tabela.buildFilterOptions(rowsForFilterOptions(col), col);
+    const cur = state.colFilters[col] ? new Set(state.colFilters[col]) : new Set(opts.map(o => o.value));
+    if (cur.has(value)) cur.delete(value); else cur.add(value);
+    state.colFilters[col] = cur.size === opts.length ? null : cur;
+    renderLista();
+    renderMobileFilters();
+  },
+  setMobileSort(col, dir) {
+    state.sort = { col, dir };
+    renderLista();
+    renderMobileFilters();
   },
 
   // Última pessoa escolhida como autora (comentários e "Aberto por" inicial)
@@ -491,24 +552,30 @@ function getEnriched(p) {
   };
 }
 
-function getFiltered() {
-  const { filters, busca, problems } = state;
+const SORT_FIELD = { responsavel_id: 'responsavelNome', aberto_por_id: 'abertoPorNome' };
+
+function buscaFiltrada(problems, busca) {
   const q = busca.trim().toLowerCase();
-  return problems
-    .filter(p =>
-      (filters.setor === 'todos' || p.setor === filters.setor) &&
-      (filters.criticidade === 'todos' || p.criticidade === filters.criticidade) &&
-      (filters.responsavel === 'todos' || p.responsavel_id === filters.responsavel) &&
-      (!q || p.titulo.toLowerCase().includes(q) || (p.descricao || '').toLowerCase().includes(q))
-    )
-    .map(p => getEnriched(p))
-    .sort((a, b) => (a.prazo || '9999').localeCompare(b.prazo || '9999'));
+  return problems.filter(p => !q || p.titulo.toLowerCase().includes(q) || (p.descricao || '').toLowerCase().includes(q));
+}
+
+// Linhas para montar as opções de um painel: filtradas pela busca e por TODAS
+// as outras colunas, exceto a própria (para o painel mostrar todos os valores
+// possíveis daquela coluna, como no Excel).
+function rowsForFilterOptions(excludeCol) {
+  const rows = buscaFiltrada(state.problems, state.busca).map(p => getEnriched(p));
+  return Tabela.applyColFilters(rows, { ...state.colFilters, [excludeCol]: null });
+}
+
+function getFiltered() {
+  const rows = buscaFiltrada(state.problems, state.busca).map(p => getEnriched(p));
+  const filtered = Tabela.applyColFilters(rows, state.colFilters);
+  return Tabela.sortRows(filtered, SORT_FIELD[state.sort.col] || state.sort.col, state.sort.dir);
 }
 
 // ── Render completo ─────────────────────────────────────────
 function render() {
   renderTabs();
-  renderSelects();
   renderLista();
   renderDashboard();
   renderConfig();
@@ -529,21 +596,74 @@ function renderComentarioAutor() {
     state.pessoas.map(p => `<option value="${esc(p.id)}" ${p.id === state.currentUserId ? 'selected' : ''}>${esc(p.nome)}</option>`).join('');
 }
 
-function renderSelects() {
-  // Filtro setores
-  const setorSel = document.getElementById('filter-setor');
-  const prevSetor = setorSel.value;
-  setorSel.innerHTML = `<option value="todos">Todos os setores</option>` +
-    state.setores.map(s => `<option value="${esc(s.nome)}" ${s.nome === prevSetor ? 'selected' : ''}>${esc(s.nome)}</option>`).join('');
+const COLS = [
+  { key: 'titulo', label: 'Título', filtravel: false },
+  { key: 'setor', label: 'Setor', filtravel: true },
+  { key: 'criticidade', label: 'Criticidade', filtravel: true },
+  { key: 'responsavel_id', label: 'Responsável', filtravel: true },
+  { key: 'status', label: 'Status', filtravel: true },
+  { key: 'prazo', label: 'Prazo', filtravel: false },
+  { key: 'aberto_por_id', label: 'Aberto por', filtravel: true },
+];
 
-  // Filtro responsavel
-  const respSel = document.getElementById('filter-responsavel');
-  const prevResp = respSel.value;
-  respSel.innerHTML = `<option value="todos">Todos os responsáveis</option>` +
-    state.pessoas.map(p => `<option value="${esc(p.id)}" ${p.id === prevResp ? 'selected' : ''}>${esc(p.nome)}</option>`).join('');
+function renderFilterPanelHTML(colKey) {
+  const options = Tabela.buildFilterOptions(rowsForFilterOptions(colKey), colKey);
+  const draft = state.filterDraft || new Set();
+  const items = options.map(o => `
+    <label class="cf-item">
+      <input type="checkbox" ${draft.has(o.value) ? 'checked' : ''} onchange="app.toggleFilterOption('${colKey}','${esc(o.value)}')">
+      <span>${esc(o.label)}</span><span class="cf-count">${o.count}</span>
+    </label>`).join('') || '<div class="cf-item muted">Nenhum valor</div>';
+  return `
+    <div class="col-filter-panel" onclick="event.stopPropagation()">
+      <div class="cf-actions"><button type="button" onclick="app.filterSelectAll('${colKey}')">Selecionar tudo</button><button type="button" onclick="app.filterClear()">Limpar</button></div>
+      <div class="cf-list">${items}</div>
+      <div class="cf-buttons">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="app.cancelFilterPanel()">Cancelar</button>
+        <button type="button" class="btn btn-primary btn-sm" onclick="app.applyFilterPanel()">OK</button>
+      </div>
+    </div>`;
+}
+
+function renderThead() {
+  document.getElementById('thead-row').innerHTML = COLS.map(c => {
+    const activeSort = state.sort.col === c.key;
+    const ind = activeSort ? (state.sort.dir === 'desc' ? '▼' : '▲') : '';
+    const filterOn = c.filtravel && state.colFilters[c.key];
+    const icon = c.filtravel
+      ? `<button type="button" class="filter-icon${filterOn ? ' active' : ''}" onclick="event.stopPropagation();app.openFilterPanel('${c.key}')" aria-label="Filtrar ${esc(c.label)}">▽</button>`
+      : '';
+    const panel = state.openFilterPanel === c.key ? renderFilterPanelHTML(c.key) : '';
+    return `<th class="th"><span class="th-inner" onclick="app.toggleSort('${c.key}')">${esc(c.label)}<span class="sort-ind">${ind}</span></span>${icon}${panel}</th>`;
+  }).join('');
+}
+
+function renderMobileFilters() {
+  const sections = COLS.filter(c => c.filtravel).map(c => {
+    const opts = Tabela.buildFilterOptions(rowsForFilterOptions(c.key), c.key);
+    const active = state.colFilters[c.key];
+    const items = opts.map(o => `
+      <label class="cf-item">
+        <input type="checkbox" ${(!active || active.has(o.value)) ? 'checked' : ''} onchange="app.toggleMobileFilterOption('${c.key}','${esc(o.value)}')">
+        <span>${esc(o.label)}</span><span class="cf-count">${o.count}</span>
+      </label>`).join('') || '<div class="muted">Nenhum valor</div>';
+    return `<div class="mf-section"><div class="mf-section-title">${esc(c.label)}</div>${items}</div>`;
+  }).join('');
+  const sortSection = `<div class="mf-section">
+    <div class="mf-section-title">Ordenar por</div>
+    <select class="select" onchange="app.setMobileSort(this.value, state.sort.dir)">
+      ${COLS.map(c => `<option value="${c.key}" ${state.sort.col === c.key ? 'selected' : ''}>${esc(c.label)}</option>`).join('')}
+    </select>
+    <div class="inline-form" style="margin-top:8px;">
+      <button type="button" class="btn btn-secondary btn-sm" onclick="app.setMobileSort(state.sort.col,'asc')">Crescente</button>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="app.setMobileSort(state.sort.col,'desc')">Decrescente</button>
+    </div>
+  </div>`;
+  document.getElementById('mobile-filters-body').innerHTML = sections + sortSection;
 }
 
 function renderLista() {
+  renderThead();
   const filtered = getFiltered();
   const tbody = document.getElementById('lista-tbody');
   if (filtered.length === 0) {
@@ -778,6 +898,16 @@ document.getElementById('confirm-cancel').onclick = () => {
   state.deleteTarget = null;
 };
 document.getElementById('confirm-ok').onclick = () => app.doDelete();
+
+// ── Painel de filtro: fecha ao clicar fora ou apertar Esc ──
+document.addEventListener('click', (e) => {
+  if (state.openFilterPanel && !e.target.closest('.col-filter-panel') && !e.target.closest('.filter-icon')) {
+    app.closeFilterPanel();
+  }
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && state.openFilterPanel) app.closeFilterPanel();
+});
 
 // ── Init ────────────────────────────────────────────────────
 document.getElementById('anexos-input').accept = Anexos.ACCEPT;
