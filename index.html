@@ -53,16 +53,22 @@
     .select{cursor:pointer}
     .lbl{display:block;font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:6px}
 
-    .app-header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px;padding:18px 40px;background:var(--brand);color:#fff}
-    .brand{display:flex;align-items:baseline;gap:6px;flex-shrink:0}
-    .brand-1{font-size:20px;font-weight:300;letter-spacing:.04em}
-    .brand-2{font-size:26px;font-weight:800;letter-spacing:.01em}
-    .brand-3{font-size:16px;font-weight:400;letter-spacing:.03em;opacity:.85;margin-left:2px}
+    .app-header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px;padding:16px 40px;background:var(--brand);color:#fff}
+    .header-left{display:flex;align-items:center;gap:18px;flex-shrink:0}
+    .app-title{font-size:15px;font-weight:800;letter-spacing:.04em;white-space:nowrap}
+    .header-divider{width:1px;align-self:stretch;background:rgba(255,255,255,.25)}
+    .brand{display:flex;flex-direction:column;line-height:1.2;flex-shrink:0}
+    .brand-top{display:flex;align-items:baseline;gap:6px}
+    .brand-1{font-size:18px;font-weight:300;letter-spacing:.04em}
+    .brand-2{font-size:22px;font-weight:800;letter-spacing:.01em}
+    .brand-3{font-size:12px;font-weight:400;letter-spacing:.03em;opacity:.75}
     .header-tools{display:flex;flex-wrap:wrap;align-items:center;gap:12px}
+    .header-user{display:flex;align-items:center;gap:8px;font-size:13px;color:rgba(255,255,255,.9);font-weight:600}
+    .header-user .select{width:auto;background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.3);color:#fff;font-weight:600}
+    .header-user option{background:#fff;color:var(--text)}
     .search{width:240px;background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.3);color:#fff}
     .search::placeholder{color:rgba(255,255,255,.78)}
     .filters option{background:#fff;color:var(--text)}
-    .system-bar{padding:10px 40px;background:#fff;border-bottom:1px solid var(--border);font-size:12px;font-weight:800;letter-spacing:.1em;color:var(--brand)}
     .wrap{padding:24px 40px 0}
     main{padding:8px 40px 56px}
 
@@ -106,17 +112,21 @@
     .th-inner{display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none}
     .th-inner:hover{opacity:.85}
     .sort-ind{font-size:10px;opacity:.9}
-    .filter-icon{border:0;background:rgba(255,255,255,.18);color:#fff;width:22px;height:22px;border-radius:5px;font-size:11px;cursor:pointer;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center}
+    .filter-icon{border:0;background:rgba(255,255,255,.16);color:#fff;width:20px;height:20px;border-radius:5px;cursor:pointer;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center}
+    .filter-icon svg{width:10px;height:10px}
     .filter-icon.active{background:#fff;color:var(--brand)}
-    .col-filter-panel{position:absolute;top:100%;left:0;margin-top:4px;background:#fff;color:var(--text);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);width:220px;z-index:60;font-weight:400;text-transform:none;letter-spacing:normal}
-    .col-filter-panel .cf-actions{display:flex;justify-content:space-between;padding:8px 10px;border-bottom:1px solid var(--border);font-size:12px}
-    .col-filter-panel .cf-actions button{background:none;border:0;color:var(--brand);cursor:pointer;font-size:12px;font-weight:700}
-    .col-filter-panel .cf-list{max-height:220px;overflow-y:auto;padding:6px 0}
-    .cf-item{display:flex;align-items:center;gap:8px;padding:6px 12px;font-size:13px;cursor:pointer}
+    .col-filter-panel{position:absolute;top:100%;left:0;margin-top:6px;background:#fff;color:var(--text);border:1px solid var(--border);border-radius:10px;box-shadow:0 10px 28px rgba(15,23,42,.14);width:224px;z-index:60;font-weight:400;text-transform:none;letter-spacing:normal;overflow:hidden}
+    .col-filter-panel .cf-actions{display:flex;justify-content:space-between;padding:7px 10px;border-bottom:1px solid var(--border);font-size:11px}
+    .col-filter-panel .cf-actions button{background:none;border:0;color:var(--brand);cursor:pointer;font-size:11px;font-weight:700;padding:2px}
+    .cf-search{padding:7px 10px;border-bottom:1px solid var(--border)}
+    .cf-search input{width:100%;border:1px solid var(--border-input);border-radius:6px;padding:6px 8px;font-size:12px;min-height:0}
+    .col-filter-panel .cf-list{max-height:200px;overflow-y:auto;padding:4px 0}
+    .cf-item{display:flex;align-items:center;gap:8px;padding:5px 10px;font-size:12.5px;cursor:pointer}
     .cf-item:hover{background:var(--bg)}
-    .cf-item .cf-count{margin-left:auto;color:var(--text-2);font-size:11px}
-    .cf-buttons{display:flex;gap:8px;padding:10px;border-top:1px solid var(--border)}
-    .cf-buttons .btn{flex:1}
+    .cf-item input[type=checkbox]{width:14px;height:14px;flex-shrink:0}
+    .cf-item .cf-count{margin-left:auto;color:var(--text-2);font-size:10.5px}
+    .cf-buttons{display:flex;gap:6px;padding:8px 10px;border-top:1px solid var(--border)}
+    .cf-buttons .btn{flex:1;min-height:32px;font-size:12px}
     #btn-filtros-mobile{display:none}
     .mobile-filters-overlay{position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:80;display:flex;align-items:flex-end}
     .mobile-filters-overlay.hidden{display:none}
@@ -125,7 +135,8 @@
     .mf-section-title{font-weight:700;font-size:14px;margin-bottom:8px}
 
     .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px}
-    .kpi{padding:20px}
+    .kpi{padding:20px;border-left:3px solid transparent}
+    .kpi-alert{border-left-color:var(--danger)}
     .kpi-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-2)}
     .kpi-body{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-top:8px}
     .kpi-value{font-size:34px;font-weight:800}
@@ -188,9 +199,10 @@
     @media (max-width:768px){
       body{font-size:15px}
       .app-header{padding:14px 16px;gap:12px}
+      .header-left{flex-direction:column;align-items:flex-start;gap:6px}
+      .header-divider{display:none}
       .header-tools{width:100%}
       .search{width:100%}
-      .system-bar{padding:10px 16px}
       .wrap{padding:16px 16px 0}
       main{padding:8px 16px 104px}
       #btn-new{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom));z-index:40;min-height:52px;padding:0 22px;border-radius:999px;background:var(--brand);color:#fff;box-shadow:0 6px 18px rgba(15,23,42,.35);border:2px solid #fff}
@@ -276,28 +288,33 @@
 <div id="app">
 
   <header class="app-header">
-    <div class="brand">
-      <span class="brand-1">GRUPO</span>
-      <span class="brand-2">GPS</span>
-      <span class="brand-3">Mecanizada</span>
+    <div class="header-left">
+      <span class="app-title">MAPEAMENTO DE ATIVIDADES</span>
+      <span class="header-divider"></span>
+      <div class="brand">
+        <div class="brand-top"><span class="brand-1">GRUPO</span><span class="brand-2">GPS</span></div>
+        <span class="brand-3">Mecanizada</span>
+      </div>
     </div>
     <div class="header-tools">
       <input id="busca-problemas" type="text" class="input search" placeholder="Buscar problemas..." oninput="app.onBuscaChange(this.value)">
+      <div class="header-user">
+        <span>Você é</span>
+        <select id="current-user-select" class="select" onchange="app.setCurrentUser(this.value)"></select>
+      </div>
       <button id="btn-new" class="btn btn-light" onclick="app.openNew()">+ Novo problema</button>
     </div>
   </header>
 
-  <div class="system-bar">MAPEAMENTO DE ATIVIDADES</div>
-
   <div class="wrap">
     <div class="tabs">
-      <button id="tab-lista" class="tab active" onclick="app.setTab('lista')">Lista</button>
-      <button id="tab-dashboard" class="tab" onclick="app.setTab('dashboard')">Dashboard</button>
+      <button id="tab-dashboard" class="tab active" onclick="app.setTab('dashboard')">Dashboard</button>
+      <button id="tab-lista" class="tab" onclick="app.setTab('lista')">Lista</button>
       <button id="tab-config" class="tab" onclick="app.setTab('config')">Configurações</button>
     </div>
 
     <!-- Filtros (lista) -->
-    <div id="filters-bar" class="filters">
+    <div id="filters-bar" class="filters hidden">
       <button id="btn-filtros-mobile" class="btn btn-secondary" onclick="app.openMobileFilters()">Filtros</button>
     </div>
   </div>
@@ -305,7 +322,7 @@
   <main>
 
     <!-- ABA: LISTA -->
-    <div id="view-lista">
+    <div id="view-lista" class="hidden">
       <div class="card table-card">
         <table class="table">
           <thead>
@@ -317,7 +334,7 @@
     </div>
 
     <!-- ABA: DASHBOARD -->
-    <div id="view-dashboard" class="hidden">
+    <div id="view-dashboard">
       <div id="kpi-grid" class="kpi-grid"></div>
       <div class="grid-2 mt-24">
         <div class="card card-pad">
@@ -440,7 +457,7 @@
         <div class="section-title">Histórico</div>
         <div id="comentarios-list"></div>
         <div class="comment-form">
-          <select id="comentario-autor" class="select" aria-label="Quem está comentando" onchange="app.setComentarioAutor(this.value)"></select>
+          <select id="comentario-autor" class="select" aria-label="Quem está comentando"></select>
           <div class="inline-form" style="margin-top:8px;">
             <input id="novo-comentario" type="text" class="input" placeholder="Adicionar comentário...">
             <button class="btn btn-secondary" onclick="app.addComment()">Enviar</button>

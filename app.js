@@ -50,6 +50,14 @@ function showLoading(v, msg = 'Carregando...') {
   document.getElementById('loading-overlay').classList.toggle('hidden', !v);
 }
 
+// Sem login de verdade: "administrador" é só quem está selecionado em "Você é".
+// Não é uma trava de segurança (o mesmo nível de acesso de sempre neste app),
+// só organiza a interface para o resto do time não ver Configurações.
+function isAdmin() {
+  const p = state.pessoas.find(x => x.id === state.currentUserId);
+  return !!p && p.nome.trim().toLowerCase() === 'warlison abreu';
+}
+
 // ── Estado da aplicação ─────────────────────────────────────
 const state = {
   problems: [],
@@ -61,7 +69,8 @@ const state = {
   sort: { col: 'prazo', dir: 'asc' },
   openFilterPanel: null,
   filterDraft: null,
-  activeTab: 'lista',
+  filterSearch: '',
+  activeTab: 'dashboard',
   modal: null, // { mode: 'new'|'edit', id?, draft: {} }
   novoComentario: '',
   deleteTarget: null,
@@ -185,12 +194,14 @@ const app = {
   openFilterPanel(col) {
     const total = Tabela.buildFilterOptions(rowsForFilterOptions(col), col).map(o => o.value);
     state.openFilterPanel = col;
+    state.filterSearch = '';
     state.filterDraft = state.colFilters[col] ? new Set(state.colFilters[col]) : new Set(total);
     renderLista();
   },
   closeFilterPanel() {
     state.openFilterPanel = null;
     state.filterDraft = null;
+    state.filterSearch = '';
     renderLista();
   },
   cancelFilterPanel() { app.closeFilterPanel(); },
@@ -198,13 +209,21 @@ const app = {
     if (state.filterDraft.has(value)) state.filterDraft.delete(value); else state.filterDraft.add(value);
     renderLista();
   },
+  // "Selecionar tudo"/"Limpar" agem só sobre o que está visível (respeita a busca do painel).
   filterSelectAll(col) {
-    state.filterDraft = new Set(Tabela.buildFilterOptions(rowsForFilterOptions(col), col).map(o => o.value));
+    visibleFilterOptions(col).forEach(o => state.filterDraft.add(o.value));
     renderLista();
   },
-  filterClear() {
-    state.filterDraft = new Set();
+  filterClear(col) {
+    if (!state.filterSearch) { state.filterDraft = new Set(); renderLista(); return; }
+    visibleFilterOptions(col).forEach(o => state.filterDraft.delete(o.value));
     renderLista();
+  },
+  setFilterSearch(col, value) {
+    state.filterSearch = value;
+    renderLista();
+    const input = document.querySelector('.col-filter-panel .cf-search input');
+    if (input) { input.focus(); const pos = value.length; input.setSelectionRange(pos, pos); }
   },
   applyFilterPanel() {
     const col = state.openFilterPanel;
@@ -212,6 +231,7 @@ const app = {
     state.colFilters[col] = state.filterDraft.size === total ? null : new Set(state.filterDraft);
     state.openFilterPanel = null;
     state.filterDraft = null;
+    state.filterSearch = '';
     renderLista();
   },
   clearAllFilters() {
@@ -240,10 +260,12 @@ const app = {
     renderMobileFilters();
   },
 
-  // Última pessoa escolhida como autora (comentários e "Aberto por" inicial)
-  setComentarioAutor(id) {
+  // Quem está usando o sistema agora (comentários, "Aberto por" inicial, e
+  // decide se Configurações aparece — ver isAdmin()).
+  setCurrentUser(id) {
     state.currentUserId = id;
     if (id) localStorage.setItem('probsys_user', id);
+    render();
   },
 
   // ── Modal ──────────────────────────────────────────────────
@@ -405,7 +427,7 @@ const app = {
     const autor = state.pessoas.find(p => p.id === document.getElementById('comentario-autor').value);
     if (!autor) { showToast('Escolha quem está comentando.'); return; }
     if (!texto) return;
-    app.setComentarioAutor(autor.id);
+    // Não muda "Você é" (o cabeçalho) — essa escolha vale só para este comentário.
     state.modal.draft.comentarios = [
       { autor: autor.nome, texto, data: new Date().toISOString().slice(0, 10) },
       ...(state.modal.draft.comentarios || []),
@@ -567,6 +589,15 @@ function rowsForFilterOptions(excludeCol) {
   return Tabela.applyColFilters(rows, { ...state.colFilters, [excludeCol]: null });
 }
 
+// Opções do painel de filtro após a busca digitada dentro dele (state.filterSearch).
+function visibleFilterOptions(col) {
+  const all = Tabela.buildFilterOptions(rowsForFilterOptions(col), col);
+  const q = (state.filterSearch || '').trim().toLowerCase();
+  return q ? all.filter(o => o.label.toLowerCase().includes(q)) : all;
+}
+
+const FILTER_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16l-6 8v5l-4 2v-7z"/></svg>';
+
 function getFiltered() {
   const rows = buscaFiltrada(state.problems, state.busca).map(p => getEnriched(p));
   const filtered = Tabela.applyColFilters(rows, state.colFilters);
@@ -575,14 +606,25 @@ function getFiltered() {
 
 // ── Render completo ─────────────────────────────────────────
 function render() {
+  renderCurrentUserSelect();
   renderTabs();
   renderLista();
   renderDashboard();
   renderConfig();
 }
 
+function renderCurrentUserSelect() {
+  const sel = document.getElementById('current-user-select');
+  const prev = sel.value || state.currentUserId;
+  sel.innerHTML = `<option value="">Selecione</option>` +
+    state.pessoas.map(p => `<option value="${esc(p.id)}" ${p.id === prev ? 'selected' : ''}>${esc(p.nome)}</option>`).join('');
+  if (prev) sel.value = prev;
+}
+
 function renderTabs() {
+  if (state.activeTab === 'config' && !isAdmin()) state.activeTab = 'dashboard'; // perdeu acesso: sai da aba
   const { activeTab } = state;
+  document.getElementById('tab-config').classList.toggle('hidden', !isAdmin());
   ['lista', 'dashboard', 'config'].forEach(t => {
     document.getElementById('tab-' + t).classList.toggle('active', activeTab === t);
     document.getElementById('view-' + t).classList.toggle('hidden', activeTab !== t);
@@ -607,16 +649,21 @@ const COLS = [
 ];
 
 function renderFilterPanelHTML(colKey) {
-  const options = Tabela.buildFilterOptions(rowsForFilterOptions(colKey), colKey);
+  const allOptions = Tabela.buildFilterOptions(rowsForFilterOptions(colKey), colKey);
+  const options = visibleFilterOptions(colKey);
   const draft = state.filterDraft || new Set();
   const items = options.map(o => `
     <label class="cf-item">
       <input type="checkbox" ${draft.has(o.value) ? 'checked' : ''} onchange="app.toggleFilterOption('${colKey}','${esc(o.value)}')">
       <span>${esc(o.label)}</span><span class="cf-count">${o.count}</span>
-    </label>`).join('') || '<div class="cf-item muted">Nenhum valor</div>';
+    </label>`).join('') || '<div class="cf-item muted">Nenhum valor encontrado</div>';
+  const search = allOptions.length > 6
+    ? `<div class="cf-search"><input type="text" placeholder="Buscar..." value="${esc(state.filterSearch || '')}" oninput="app.setFilterSearch('${colKey}', this.value)" onclick="event.stopPropagation()"></div>`
+    : '';
   return `
     <div class="col-filter-panel" onclick="event.stopPropagation()">
-      <div class="cf-actions"><button type="button" onclick="app.filterSelectAll('${colKey}')">Selecionar tudo</button><button type="button" onclick="app.filterClear()">Limpar</button></div>
+      <div class="cf-actions"><button type="button" onclick="app.filterSelectAll('${colKey}')">Selecionar tudo</button><button type="button" onclick="app.filterClear('${colKey}')">Limpar</button></div>
+      ${search}
       <div class="cf-list">${items}</div>
       <div class="cf-buttons">
         <button type="button" class="btn btn-secondary btn-sm" onclick="app.cancelFilterPanel()">Cancelar</button>
@@ -631,7 +678,7 @@ function renderThead() {
     const ind = activeSort ? (state.sort.dir === 'desc' ? '▼' : '▲') : '';
     const filterOn = c.filtravel && state.colFilters[c.key];
     const icon = c.filtravel
-      ? `<button type="button" class="filter-icon${filterOn ? ' active' : ''}" onclick="event.stopPropagation();app.openFilterPanel('${c.key}')" aria-label="Filtrar ${esc(c.label)}">▽</button>`
+      ? `<button type="button" class="filter-icon${filterOn ? ' active' : ''}" onclick="event.stopPropagation();app.openFilterPanel('${c.key}')" aria-label="Filtrar ${esc(c.label)}">${FILTER_ICON_SVG}</button>`
       : '';
     const panel = state.openFilterPanel === c.key ? renderFilterPanelHTML(c.key) : '';
     return `<th class="th"><span class="th-inner" onclick="app.toggleSort('${c.key}')">${esc(c.label)}<span class="sort-ind">${ind}</span></span>${icon}${panel}</th>`;
@@ -692,23 +739,28 @@ function renderDashboard() {
     return counts.map(c => `<div style="width:6px;border-radius:2px;height:${Math.max(4, Math.round(c / max * 26))}px;background:${color};opacity:${c > 0 ? 1 : 0.3};flex-shrink:0;"></div>`).join('');
   };
 
+  // Ordem por urgência: o que precisa de ação primeiro, o resumo depois.
   const kpiDefs = [
-    { label: 'Abertos',              color: fgVar('st', 'Aberto'),               pred: p => p.status === 'Aberto' },
-    { label: 'Em andamento',         color: fgVar('st', 'Em andamento'),         pred: p => p.status === 'Em andamento' },
-    { label: 'Aguardando terceiros', color: fgVar('st', 'Aguardando terceiros'), pred: p => p.status === 'Aguardando terceiros' },
-    { label: 'Críticos em aberto',   color: fgVar('crit', 'Alta'),               pred: p => p.criticidade === 'Alta' && OPEN_STATUSES.includes(p.status) },
-    { label: 'Resolvidos',           color: fgVar('st', 'Resolvido'),            pred: p => p.status === 'Resolvido' },
+    { label: 'Vencidos',             color: 'var(--danger)',                     pred: p => p.vencido, foot: 'prazo estourado' },
+    { label: 'Críticos em aberto',   color: fgVar('crit', 'Alta'),               pred: p => p.criticidade === 'Alta' && OPEN_STATUSES.includes(p.status), foot: 'por setor' },
+    { label: 'Abertos',              color: fgVar('st', 'Aberto'),               pred: p => p.status === 'Aberto', foot: 'por setor' },
+    { label: 'Em andamento',         color: fgVar('st', 'Em andamento'),         pred: p => p.status === 'Em andamento', foot: 'por setor' },
+    { label: 'Aguardando terceiros', color: fgVar('st', 'Aguardando terceiros'), pred: p => p.status === 'Aguardando terceiros', foot: 'por setor' },
+    { label: 'Resolvidos',           color: fgVar('st', 'Resolvido'),            pred: p => p.status === 'Resolvido', foot: 'por setor' },
   ];
 
-  document.getElementById('kpi-grid').innerHTML = kpiDefs.map(k => `
-    <div class="card kpi">
+  document.getElementById('kpi-grid').innerHTML = kpiDefs.map(k => {
+    const valor = allEnriched.filter(k.pred).length;
+    return `
+    <div class="card kpi${k.label === 'Vencidos' && valor > 0 ? ' kpi-alert' : ''}">
       <div class="kpi-label">${esc(k.label)}</div>
       <div class="kpi-body">
-        <div class="kpi-value" style="color:${k.color};">${allEnriched.filter(k.pred).length}</div>
+        <div class="kpi-value" style="color:${k.color};">${valor}</div>
         <div class="kpi-spark">${spark(k.pred, k.color)}</div>
       </div>
-      <div class="kpi-foot">por setor</div>
-    </div>`).join('');
+      <div class="kpi-foot">${esc(k.foot)}</div>
+    </div>`;
+  }).join('');
 
   const barRow = (label, count, max, color) => `
     <div class="bar-row">
