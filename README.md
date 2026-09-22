@@ -4,7 +4,7 @@ Sistema web para mapeamento de atividades e gestão de problemas operacionais. P
 
 ## Funcionalidades
 
-- 🔐 **Login** por e-mail e senha (Supabase Auth), com papéis **membro** e **admin**; qualquer pessoa com e-mail `@gestaogps.com.br` ou `@gpssa.com.br` pode criar a própria conta pela tela
+- 🔐 **Login** por nome e senha (Supabase Auth por baixo dos panos), com papéis **membro** e **admin**
 - 📋 **Lista de problemas** com filtro estilo Excel (por coluna, com contagem) e ordenação por clique no cabeçalho
 - 📊 **Dashboard** com KPIs e gráficos de barras por setor/criticidade
 - ✅ **Ciclo de vida completo**: Aberto → Em andamento → Aguardando terceiros → Resolvido / Cancelado
@@ -37,20 +37,15 @@ As migrações (em ordem) estão em `supabase/migrations/`. Precisam estar aplic
 
 ## Login e contas
 
-**Caminho normal — autocadastro:** na tela de login, a pessoa clica em "Criar conta" e usa seu e-mail `@gestaogps.com.br` ou `@gpssa.com.br`. O banco recusa qualquer outro domínio (gatilho em `auth.users`, não dá pra burlar pela tela). Ao criar a conta:
+Não existe autocadastro — o **admin cria cada conta** direto no painel do Supabase (Authentication → Users → Add user):
 
-- se já existir uma pessoa cadastrada com esse e-mail (adicionada em Configurações → Pessoas, sem login ainda), a conta nova se liga a ela — mantém o histórico e o setor já cadastrados;
-- se não existir, uma pessoa nova é criada automaticamente, com papel `membro` e sem setor definido (o admin ajusta depois em Configurações).
+1. Escolha um e-mail fictício `<primeiro-nome-em-minúsculo>@mecanizada.com` (ex: `warlison@mecanizada.com`) e uma senha. Marque **"Auto Confirm User"** (assim não precisa enviar nenhum e-mail de verdade — esse domínio não existe).
+2. Se já existir uma pessoa cadastrada com esse mesmo e-mail em Configurações → Pessoas (sem login ainda), a conta se liga a ela automaticamente — mantém o histórico e o setor já cadastrados. Para isso, cadastre o e-mail da pessoa em Configurações **antes** de criar a conta.
+3. Se não existir, uma pessoa nova é criada automaticamente, com papel `membro` e sem setor definido (você ajusta depois em Configurações).
 
-Para manter o histórico de alguém que já tem problemas registrados no sistema, cadastre o e-mail dela em Configurações → Pessoas **antes** de ela criar a conta.
+Na tela de login, a pessoa digita **só o primeiro nome** (ex: "Warlison") + a senha — o app monta o `@mecanizada.com` sozinho. Se dois nomes colidirem (dois "Warlison", por exemplo), escolha um e-mail diferente para o segundo (ex: `warlison2@mecanizada.com`) e avise a pessoa a digitar esse nome na tela.
 
-**Caminho alternativo — convite pelo admin:** ainda funciona, para quando você quiser criar a conta por fora (ex: o e-mail da empresa da pessoa está com problema):
-1. Rode `scripts/convidar-contas.js` localmente (veja as instruções no topo do arquivo), ou convide manualmente pelo painel do Supabase (Authentication → Users → Add user → Send invite email).
-2. Ligue a conta à pessoa: `update pessoas set auth_user_id = (select id from auth.users where email = '...') where nome = '...';` (o autocadastro faz esse passo sozinho; esse comando só é necessário nesse caminho alternativo).
-
-O script nunca usa nenhuma chave secreta minha — ele lê a chave `service_role` de uma variável de ambiente que só existe na máquina de quem roda o script.
-
-> **Atenção:** as regras de acesso (RLS) do Supabase exigem login e uma pessoa vinculada para ler ou escrever qualquer dado. O bucket de anexos segue a mesma regra. Sem isso, o app não funciona — daí a ordem: contas primeiro, trava de acesso depois.
+> **Atenção:** as regras de acesso (RLS) do Supabase **ainda não exigem** login — a chave pública do app continua liberada para ler/escrever tudo, então a tela de login por enquanto é só uma camada de identificação, não uma trava de segurança real. Isso é intencional nesta fase (ver spec em `docs/superpowers/specs/`); avise quando quiser que eu aplique a trava final.
 
 ## Como rodar localmente
 
@@ -60,7 +55,7 @@ O app já está configurado para conectar ao Supabase do projeto Grupo GPS.
 
 ## Testes
 
-As funções puras (anexos, filtro/ordenação da tabela, tarefas diárias, validação de e-mail da empresa) têm testes com o runner nativo do Node (18+):
+As funções puras (anexos, filtro/ordenação da tabela, tarefas diárias, montagem do e-mail de login) têm testes com o runner nativo do Node (18+):
 
 ```
 node --test
