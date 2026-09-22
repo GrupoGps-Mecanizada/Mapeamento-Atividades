@@ -15,5 +15,8 @@ desktop.ini
 # Uploads locais
 uploads/
 
+# Dados locais de scripts (nunca comitar e-mails/segredos)
+scripts/*.local.json
+
 # Logs
 *.log
