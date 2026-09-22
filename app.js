@@ -75,6 +75,8 @@ const state = {
   novoComentario: '',
   deleteTarget: null,
   signedUrls: {}, // path -> URL assinada (miniaturas); limpa ao fechar o modal
+  tarefas: [],
+  tarefasCarregadas: false,
 };
 
 // ── Supabase: carregar dados ────────────────────────────────
@@ -97,6 +99,22 @@ async function loadAll() {
     state.currentUserId = savedUser && state.pessoas.find(p => p.id === savedUser) ? savedUser : '';
   } catch (e) {
     showToast('Erro ao carregar dados: ' + e.message, 5000);
+  } finally {
+    showLoading(false);
+    render();
+  }
+}
+
+async function loadTarefas() {
+  if (!state.currentUserId) { state.tarefasCarregadas = true; render(); return; }
+  showLoading(true);
+  try {
+    const { data, error } = await sb.from('tarefas').select('*').eq('pessoa_id', state.currentUserId).order('ordem');
+    if (error) throw error;
+    state.tarefas = data || [];
+    state.tarefasCarregadas = true;
+  } catch (e) {
+    showToast('Erro ao carregar tarefas: ' + e.message, 5000);
   } finally {
     showLoading(false);
     render();
@@ -176,6 +194,7 @@ const app = {
   // Tabs
   setTab(tab) {
     state.activeTab = tab;
+    if (tab === 'tarefas' && !state.tarefasCarregadas) { loadTarefas(); return; } // loadTarefas() já chama render()
     render();
   },
 
@@ -265,7 +284,9 @@ const app = {
   setCurrentUser(id) {
     state.currentUserId = id;
     if (id) localStorage.setItem('probsys_user', id);
-    render();
+    state.tarefas = [];
+    state.tarefasCarregadas = false; // troca de pessoa: recarrega as tarefas dela na próxima vez que abrir a aba
+    if (state.activeTab === 'tarefas') loadTarefas(); else render();
   },
 
   // ── Modal ──────────────────────────────────────────────────
@@ -552,6 +573,75 @@ const app = {
       showToast('Erro: ' + e.message, 4000);
     }
   },
+
+  // ── Tarefas diárias ────────────────────────────────────────
+  novaTarefa(rotineira) {
+    if (!state.currentUserId) return;
+    const lista = state.tarefas.filter(t => t.rotineira === rotineira).sort((a, b) => a.ordem - b.ordem);
+    const ordem = Tarefas.ordemEntre(lista.length ? lista[lista.length - 1].ordem : null, null);
+    const item = { id: crypto.randomUUID(), pessoa_id: state.currentUserId, texto: '', rotineira, concluida_em: null, ordem, _novo: true };
+    state.tarefas.push(item);
+    renderTarefas();
+    setTimeout(() => { const el = document.getElementById('tarefa-' + item.id); if (el) el.focus(); }, 0);
+  },
+
+  async salvarTextoTarefa(id, texto) {
+    const t = state.tarefas.find(x => x.id === id);
+    if (!t) return;
+    t.texto = texto;
+    if (!texto.trim()) {
+      if (t._novo) { state.tarefas = state.tarefas.filter(x => x.id !== id); renderTarefas(); }
+      return;
+    }
+    delete t._novo;
+    // Sem renderTarefas() aqui: o DOM já mostra o texto certo (é o que o usuário
+    // digitou); re-renderizar depois do await destruiria o nó recém-focado.
+    try {
+      await sb.from('tarefas').upsert({ id: t.id, pessoa_id: t.pessoa_id, texto: t.texto, rotineira: t.rotineira, concluida_em: t.concluida_em, ordem: t.ordem });
+    } catch (e) {
+      showToast('Erro ao salvar tarefa: ' + e.message, 4000);
+    }
+  },
+
+  async toggleTarefa(id) {
+    const t = state.tarefas.find(x => x.id === id);
+    if (!t) return;
+    const feita = Tarefas.estaConcluidaHoje(t);
+    t.concluida_em = feita ? null : Tarefas.todayLocal();
+    renderTarefas();
+    try { await sb.from('tarefas').update({ concluida_em: t.concluida_em }).eq('id', id); }
+    catch (e) { showToast('Erro: ' + e.message, 4000); }
+  },
+
+  async toggleRotineira(id) {
+    const t = state.tarefas.find(x => x.id === id);
+    if (!t) return;
+    t.rotineira = !t.rotineira;
+    renderTarefas();
+    try { await sb.from('tarefas').update({ rotineira: t.rotineira }).eq('id', id); }
+    catch (e) { showToast('Erro: ' + e.message, 4000); }
+  },
+
+  async removeTarefa(id) {
+    state.tarefas = state.tarefas.filter(x => x.id !== id);
+    renderTarefas();
+    try { await sb.from('tarefas').delete().eq('id', id); }
+    catch (e) { showToast('Erro: ' + e.message, 4000); }
+  },
+
+  tarefaKeydown(e, id) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const t = state.tarefas.find(x => x.id === id);
+      const rotineira = t ? t.rotineira : false;
+      app.salvarTextoTarefa(id, e.target.value);
+      app.novaTarefa(rotineira);
+    }
+    if (e.key === 'Backspace' && e.target.value === '') {
+      e.preventDefault();
+      app.removeTarefa(id);
+    }
+  },
 };
 
 // ── Render helpers ─────────────────────────────────────────
@@ -611,6 +701,7 @@ function render() {
   renderLista();
   renderDashboard();
   renderConfig();
+  renderTarefas();
 }
 
 function renderCurrentUserSelect() {
@@ -625,7 +716,7 @@ function renderTabs() {
   if (state.activeTab === 'config' && !isAdmin()) state.activeTab = 'dashboard'; // perdeu acesso: sai da aba
   const { activeTab } = state;
   document.getElementById('tab-config').classList.toggle('hidden', !isAdmin());
-  ['lista', 'dashboard', 'config'].forEach(t => {
+  ['lista', 'dashboard', 'config', 'tarefas'].forEach(t => {
     document.getElementById('tab-' + t).classList.toggle('active', activeTab === t);
     document.getElementById('view-' + t).classList.toggle('hidden', activeTab !== t);
   });
@@ -814,6 +905,31 @@ function renderConfig() {
       </select>
       <button class="round-btn" onclick="app.removePessoa('${esc(p.id)}')" aria-label="Remover ${esc(p.nome)}">×</button>
     </div>`).join('');
+}
+
+function renderTarefaLista(containerId, rotineira) {
+  const itens = state.tarefas.filter(t => t.rotineira === rotineira).sort((a, b) => a.ordem - b.ordem);
+  document.getElementById(containerId).innerHTML = itens.map(t => {
+    const feita = Tarefas.estaConcluidaHoje(t);
+    return `<div class="tarefa-item${feita ? ' feita' : ''}">
+      <input type="checkbox" ${feita ? 'checked' : ''} onchange="app.toggleTarefa('${t.id}')">
+      <input id="tarefa-${t.id}" type="text" value="${esc(t.texto)}" placeholder="Nova tarefa..."
+        onkeydown="app.tarefaKeydown(event,'${t.id}')" onblur="app.salvarTextoTarefa('${t.id}', this.value)">
+      <div class="tarefa-actions">
+        <button type="button" class="${t.rotineira ? 'on' : ''}" title="Rotineira" onclick="app.toggleRotineira('${t.id}')">↻</button>
+        <button type="button" title="Excluir" onclick="app.removeTarefa('${t.id}')">×</button>
+      </div>
+    </div>`;
+  }).join('') + `<button type="button" class="btn btn-secondary btn-sm" style="margin-top:8px;" onclick="app.novaTarefa(${rotineira})">+ Nova tarefa</button>`;
+}
+
+function renderTarefas() {
+  const semPessoa = !state.currentUserId;
+  document.getElementById('tarefas-sem-pessoa').classList.toggle('hidden', !semPessoa);
+  document.getElementById('tarefas-conteudo').classList.toggle('hidden', semPessoa);
+  if (semPessoa) return;
+  renderTarefaLista('tarefas-rotineiras', true);
+  renderTarefaLista('tarefas-continuas', false);
 }
 
 // ── Modal render ────────────────────────────────────────────

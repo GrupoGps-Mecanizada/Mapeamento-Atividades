@@ -190,6 +190,16 @@
     .anexo-meta{font-size:12px;color:var(--text-2)}
     .anexo-actions{display:flex;gap:6px;flex-shrink:0}
     .clip{display:inline-flex;align-items:center;gap:3px;margin-left:8px;color:var(--text-2);font-size:12px;font-weight:600;vertical-align:middle}
+
+    .tarefa-item{display:flex;align-items:center;gap:10px;padding:8px 2px;border-bottom:1px solid var(--bg)}
+    .tarefa-item input[type=checkbox]{width:18px;height:18px;flex-shrink:0}
+    .tarefa-item input[type=text]{flex:1;border:0;background:none;font-size:14px;padding:6px 4px}
+    .tarefa-item input[type=text]:focus{outline:none;background:var(--bg);border-radius:6px}
+    .tarefa-item.feita input[type=text]{text-decoration:line-through;color:var(--text-2)}
+    .tarefa-actions{display:flex;gap:4px;opacity:0;flex-shrink:0}
+    .tarefa-item:hover .tarefa-actions,.tarefa-item:focus-within .tarefa-actions{opacity:1}
+    .tarefa-actions button{border:0;background:none;cursor:pointer;color:var(--text-2);font-size:14px;padding:4px}
+    .tarefa-actions button.on{color:var(--brand)}
     .confirm-box{background:#fff;border-radius:12px;padding:28px 32px;max-width:420px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,.2)}
     .confirm-title{font-size:20px;font-weight:700;margin-bottom:10px}
     .confirm-text{font-size:14px;color:var(--text-2);margin-bottom:24px;line-height:1.5}
@@ -257,6 +267,7 @@
       .form-row{grid-template-columns:1fr}
       .confirm-box{padding:22px}
       .confirm-actions .btn{flex:1}
+      .tarefa-actions{opacity:1}
       .anexo{flex-wrap:wrap}
       .anexo-info{flex:1 1 calc(100% - 60px)}
       .anexo-actions{flex:1 0 100%}
@@ -311,6 +322,7 @@
       <button id="tab-dashboard" class="tab active" onclick="app.setTab('dashboard')">Dashboard</button>
       <button id="tab-lista" class="tab" onclick="app.setTab('lista')">Lista</button>
       <button id="tab-config" class="tab" onclick="app.setTab('config')">Configurações</button>
+      <button id="tab-tarefas" class="tab" onclick="app.setTab('tarefas')">Tarefas</button>
     </div>
 
     <!-- Filtros (lista) -->
@@ -375,6 +387,23 @@
             </select>
             <button class="btn btn-primary" onclick="app.addPessoa()">Adicionar</button>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ABA: TAREFAS -->
+    <div id="view-tarefas" class="hidden">
+      <div id="tarefas-sem-pessoa" class="card card-pad hidden">
+        <div class="muted">Escolha quem você é no cabeçalho ("Você é") para ver suas tarefas.</div>
+      </div>
+      <div id="tarefas-conteudo">
+        <div class="card card-pad">
+          <div class="card-title">Rotineiras <span class="muted" style="font-weight:400;">— desmarcam sozinhas todo dia</span></div>
+          <div id="tarefas-rotineiras" class="tarefas-list"></div>
+        </div>
+        <div class="card card-pad mt-20">
+          <div class="card-title">Outras tarefas</div>
+          <div id="tarefas-continuas" class="tarefas-list"></div>
         </div>
       </div>
     </div>
@@ -493,6 +522,7 @@
 
 <script src="tabela.js"></script>
 <script src="anexos.js"></script>
+<script src="tarefas.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
