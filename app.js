@@ -50,13 +50,8 @@ function showLoading(v, msg = 'Carregando...') {
   document.getElementById('loading-overlay').classList.toggle('hidden', !v);
 }
 
-// Sem login de verdade: "administrador" é só quem está selecionado em "Você é".
-// Não é uma trava de segurança (o mesmo nível de acesso de sempre neste app),
-// só organiza a interface para o resto do time não ver Configurações.
-function isAdmin() {
-  const p = state.pessoas.find(x => x.id === state.currentUserId);
-  return !!p && p.nome.trim().toLowerCase() === 'warlison abreu';
-}
+// isAdmin() usa state.me.role (definido pelo Supabase Auth via boot()).
+function isAdmin() { return !!(state.me && state.me.role === 'admin'); }
 
 // ── Estado da aplicação ─────────────────────────────────────
 const state = {
@@ -64,6 +59,8 @@ const state = {
   pessoas: [],
   setores: [],
   currentUserId: '',
+  session: null,
+  me: null, // { id, nome, setor, role } — pessoa logada
   busca: '',
   colFilters: { setor: null, criticidade: null, status: null, responsavel_id: null, aberto_por_id: null },
   sort: { col: 'prazo', dir: 'asc' },
@@ -188,6 +185,43 @@ async function uploadAnexo(problemaId, pend) {
   return { path, nome: prep.nome, tipo: prep.tipo, tamanho: prep.blob.size, enviado_em: new Date().toISOString() };
 }
 
+// ── Auth / Boot ─────────────────────────────────────────────
+async function resolveMe(session) {
+  if (!session) return null;
+  const { data, error } = await sb.from('pessoas').select('*').eq('auth_user_id', session.user.id).maybeSingle();
+  if (error || !data) return null;
+  return data;
+}
+
+async function boot() {
+  const { data: { session } } = await sb.auth.getSession();
+  state.session = session;
+  state.me = await resolveMe(session);
+  if (session && !state.me) {
+    const erroEl = document.getElementById('login-erro');
+    erroEl.textContent = 'Sua conta ainda não foi vinculada a uma pessoa. Fale com o administrador.';
+    erroEl.classList.remove('hidden');
+    await sb.auth.signOut();
+    state.session = null;
+  }
+  if (state.me) state.currentUserId = state.me.id;
+  renderAuthGate();
+  if (state.me) loadAll();
+}
+
+function renderAuthGate() {
+  const logged = !!state.me;
+  document.getElementById('login-screen').classList.toggle('hidden', logged);
+  document.getElementById('app').classList.toggle('hidden', !logged);
+  if (logged) document.getElementById('header-user-nome').textContent = state.me.nome;
+  document.querySelectorAll('.admin-only').forEach(el => el.classList.toggle('hidden', !isAdmin()));
+}
+
+sb.auth.onAuthStateChange((_event, session) => {
+  state.session = session;
+  if (!session) { state.me = null; state.currentUserId = ''; renderAuthGate(); }
+});
+
 // ── Renderização principal ──────────────────────────────────
 const app = {
 
@@ -279,13 +313,30 @@ const app = {
     renderMobileFilters();
   },
 
-  // Quem está usando o sistema agora (comentários, "Aberto por" inicial, e
-  // decide se Configurações aparece — ver isAdmin()).
+  // Login / Logout
+  async login() {
+    const nome = document.getElementById('login-nome').value.trim();
+    const email = Auth.nomeToEmail(nome);
+    const senha = document.getElementById('login-senha').value;
+    const erroEl = document.getElementById('login-erro');
+    erroEl.classList.add('hidden');
+    if (!email) { erroEl.textContent = 'Digite seu nome.'; erroEl.classList.remove('hidden'); return; }
+    const { error } = await sb.auth.signInWithPassword({ email, password: senha });
+    if (error) { erroEl.textContent = 'Nome ou senha inválidos.'; erroEl.classList.remove('hidden'); return; }
+    await boot();
+  },
+  async logout() {
+    await sb.auth.signOut();
+    state.me = null;
+    state.currentUserId = '';
+    renderAuthGate();
+  },
+
+  // Quem está usando o sistema agora (mantido para compatibilidade interna)
   setCurrentUser(id) {
     state.currentUserId = id;
-    if (id) localStorage.setItem('probsys_user', id);
     state.tarefas = [];
-    state.tarefasCarregadas = false; // troca de pessoa: recarrega as tarefas dela na próxima vez que abrir a aba
+    state.tarefasCarregadas = false;
     if (state.activeTab === 'tarefas') loadTarefas(); else render();
   },
 
@@ -401,7 +452,7 @@ const app = {
     }
   },
 
-  // ── Anexos ────────────────────────────────────────────────
+  // ── Anexos ──────────────────────────────────────────────
   onFilesSelected(input) {
     if (!state.modal) return;
     const d = state.modal.draft;
@@ -1107,4 +1158,4 @@ document.addEventListener('keydown', (e) => {
 
 // ── Init ────────────────────────────────────────────────────
 document.getElementById('anexos-input').accept = Anexos.ACCEPT;
-loadAll();
+boot();
