@@ -50,6 +50,14 @@ function showLoading(v, msg = 'Carregando...') {
   document.getElementById('loading-overlay').classList.toggle('hidden', !v);
 }
 
+// Sem login de verdade: "administrador" é só quem está selecionado em "Você é".
+// Não é uma trava de segurança (o mesmo nível de acesso de sempre neste app),
+// só organiza a interface para o resto do time não ver Configurações.
+function isAdmin() {
+  const p = state.pessoas.find(x => x.id === state.currentUserId);
+  return !!p && p.nome.trim().toLowerCase() === 'warlison abreu';
+}
+
 // ── Estado da aplicação ─────────────────────────────────────
 const state = {
   problems: [],
@@ -57,12 +65,18 @@ const state = {
   setores: [],
   currentUserId: '',
   busca: '',
-  filters: { setor: 'todos', criticidade: 'todos', responsavel: 'todos' },
-  activeTab: 'lista',
+  colFilters: { setor: null, criticidade: null, status: null, responsavel_id: null, aberto_por_id: null },
+  sort: { col: 'prazo', dir: 'asc' },
+  openFilterPanel: null,
+  filterDraft: null,
+  filterSearch: '',
+  activeTab: 'dashboard',
   modal: null, // { mode: 'new'|'edit', id?, draft: {} }
   novoComentario: '',
   deleteTarget: null,
   signedUrls: {}, // path -> URL assinada (miniaturas); limpa ao fechar o modal
+  tarefas: [],
+  tarefasCarregadas: false,
 };
 
 // ── Supabase: carregar dados ────────────────────────────────
@@ -85,6 +99,22 @@ async function loadAll() {
     state.currentUserId = savedUser && state.pessoas.find(p => p.id === savedUser) ? savedUser : '';
   } catch (e) {
     showToast('Erro ao carregar dados: ' + e.message, 5000);
+  } finally {
+    showLoading(false);
+    render();
+  }
+}
+
+async function loadTarefas() {
+  if (!state.currentUserId) { state.tarefasCarregadas = true; render(); return; }
+  showLoading(true);
+  try {
+    const { data, error } = await sb.from('tarefas').select('*').eq('pessoa_id', state.currentUserId).order('ordem');
+    if (error) throw error;
+    state.tarefas = data || [];
+    state.tarefasCarregadas = true;
+  } catch (e) {
+    showToast('Erro ao carregar tarefas: ' + e.message, 5000);
   } finally {
     showLoading(false);
     render();
@@ -164,6 +194,7 @@ const app = {
   // Tabs
   setTab(tab) {
     state.activeTab = tab;
+    if (tab === 'tarefas' && !state.tarefasCarregadas) { loadTarefas(); return; } // loadTarefas() já chama render()
     render();
   },
 
@@ -173,16 +204,89 @@ const app = {
     render();
   },
 
-  // Filtros
-  setFilter(key, val) {
-    state.filters[key] = val;
-    render();
+  // Filtros/ordenação estilo Excel
+  toggleSort(col) {
+    if (state.sort.col === col) state.sort.dir = state.sort.dir === 'asc' ? 'desc' : 'asc';
+    else state.sort = { col, dir: 'asc' };
+    renderLista();
+  },
+  openFilterPanel(col) {
+    const total = Tabela.buildFilterOptions(rowsForFilterOptions(col), col).map(o => o.value);
+    state.openFilterPanel = col;
+    state.filterSearch = '';
+    state.filterDraft = state.colFilters[col] ? new Set(state.colFilters[col]) : new Set(total);
+    renderLista();
+  },
+  closeFilterPanel() {
+    state.openFilterPanel = null;
+    state.filterDraft = null;
+    state.filterSearch = '';
+    renderLista();
+  },
+  cancelFilterPanel() { app.closeFilterPanel(); },
+  toggleFilterOption(col, value) {
+    if (state.filterDraft.has(value)) state.filterDraft.delete(value); else state.filterDraft.add(value);
+    renderLista();
+  },
+  // "Selecionar tudo"/"Limpar" agem só sobre o que está visível (respeita a busca do painel).
+  filterSelectAll(col) {
+    visibleFilterOptions(col).forEach(o => state.filterDraft.add(o.value));
+    renderLista();
+  },
+  filterClear(col) {
+    if (!state.filterSearch) { state.filterDraft = new Set(); renderLista(); return; }
+    visibleFilterOptions(col).forEach(o => state.filterDraft.delete(o.value));
+    renderLista();
+  },
+  setFilterSearch(col, value) {
+    state.filterSearch = value;
+    renderLista();
+    const input = document.querySelector('.col-filter-panel .cf-search input');
+    if (input) { input.focus(); const pos = value.length; input.setSelectionRange(pos, pos); }
+  },
+  applyFilterPanel() {
+    const col = state.openFilterPanel;
+    const total = Tabela.buildFilterOptions(rowsForFilterOptions(col), col).length;
+    state.colFilters[col] = state.filterDraft.size === total ? null : new Set(state.filterDraft);
+    state.openFilterPanel = null;
+    state.filterDraft = null;
+    state.filterSearch = '';
+    renderLista();
+  },
+  clearAllFilters() {
+    Object.keys(state.colFilters).forEach(k => { state.colFilters[k] = null; });
+    renderLista();
+    if (!document.getElementById('mobile-filters-overlay').classList.contains('hidden')) renderMobileFilters();
+  },
+  openMobileFilters() {
+    renderMobileFilters();
+    document.getElementById('mobile-filters-overlay').classList.remove('hidden');
+  },
+  closeMobileFilters() {
+    document.getElementById('mobile-filters-overlay').classList.add('hidden');
+  },
+  toggleMobileFilterOption(col, value) {
+    const opts = Tabela.buildFilterOptions(rowsForFilterOptions(col), col);
+    const cur = state.colFilters[col] ? new Set(state.colFilters[col]) : new Set(opts.map(o => o.value));
+    if (cur.has(value)) cur.delete(value); else cur.add(value);
+    state.colFilters[col] = cur.size === opts.length ? null : cur;
+    renderLista();
+    renderMobileFilters();
+  },
+  setMobileSort(col, dir) {
+    state.sort = { col, dir };
+    renderLista();
+    renderMobileFilters();
   },
 
-  // Última pessoa escolhida como autora (comentários e "Aberto por" inicial)
-  setComentarioAutor(id) {
+  // Quem está usando o sistema agora (comentários, "Aberto por" inicial, e
+  // decide se Configurações aparece — ver isAdmin()).
+  setCurrentUser(id) {
     state.currentUserId = id;
     if (id) localStorage.setItem('probsys_user', id);
+    state.tarefas = [];
+    state.tarefasCarregadas = false; // troca de pessoa: recarrega as tarefas dela na próxima vez que abrir a aba
+    if (state.activeTab === 'tarefas') loadTarefas(); else render();
   },
 
   // ── Modal ──────────────────────────────────────────────────
@@ -344,7 +448,7 @@ const app = {
     const autor = state.pessoas.find(p => p.id === document.getElementById('comentario-autor').value);
     if (!autor) { showToast('Escolha quem está comentando.'); return; }
     if (!texto) return;
-    app.setComentarioAutor(autor.id);
+    // Não muda "Você é" (o cabeçalho) — essa escolha vale só para este comentário.
     state.modal.draft.comentarios = [
       { autor: autor.nome, texto, data: new Date().toISOString().slice(0, 10) },
       ...(state.modal.draft.comentarios || []),
@@ -469,6 +573,75 @@ const app = {
       showToast('Erro: ' + e.message, 4000);
     }
   },
+
+  // ── Tarefas diárias ────────────────────────────────────────
+  novaTarefa(rotineira) {
+    if (!state.currentUserId) return;
+    const lista = state.tarefas.filter(t => t.rotineira === rotineira).sort((a, b) => a.ordem - b.ordem);
+    const ordem = Tarefas.ordemEntre(lista.length ? lista[lista.length - 1].ordem : null, null);
+    const item = { id: crypto.randomUUID(), pessoa_id: state.currentUserId, texto: '', rotineira, concluida_em: null, ordem, _novo: true };
+    state.tarefas.push(item);
+    renderTarefas();
+    setTimeout(() => { const el = document.getElementById('tarefa-' + item.id); if (el) el.focus(); }, 0);
+  },
+
+  async salvarTextoTarefa(id, texto) {
+    const t = state.tarefas.find(x => x.id === id);
+    if (!t) return;
+    t.texto = texto;
+    if (!texto.trim()) {
+      if (t._novo) { state.tarefas = state.tarefas.filter(x => x.id !== id); renderTarefas(); }
+      return;
+    }
+    delete t._novo;
+    // Sem renderTarefas() aqui: o DOM já mostra o texto certo (é o que o usuário
+    // digitou); re-renderizar depois do await destruiria o nó recém-focado.
+    try {
+      await sb.from('tarefas').upsert({ id: t.id, pessoa_id: t.pessoa_id, texto: t.texto, rotineira: t.rotineira, concluida_em: t.concluida_em, ordem: t.ordem });
+    } catch (e) {
+      showToast('Erro ao salvar tarefa: ' + e.message, 4000);
+    }
+  },
+
+  async toggleTarefa(id) {
+    const t = state.tarefas.find(x => x.id === id);
+    if (!t) return;
+    const feita = Tarefas.estaConcluidaHoje(t);
+    t.concluida_em = feita ? null : Tarefas.todayLocal();
+    renderTarefas();
+    try { await sb.from('tarefas').update({ concluida_em: t.concluida_em }).eq('id', id); }
+    catch (e) { showToast('Erro: ' + e.message, 4000); }
+  },
+
+  async toggleRotineira(id) {
+    const t = state.tarefas.find(x => x.id === id);
+    if (!t) return;
+    t.rotineira = !t.rotineira;
+    renderTarefas();
+    try { await sb.from('tarefas').update({ rotineira: t.rotineira }).eq('id', id); }
+    catch (e) { showToast('Erro: ' + e.message, 4000); }
+  },
+
+  async removeTarefa(id) {
+    state.tarefas = state.tarefas.filter(x => x.id !== id);
+    renderTarefas();
+    try { await sb.from('tarefas').delete().eq('id', id); }
+    catch (e) { showToast('Erro: ' + e.message, 4000); }
+  },
+
+  tarefaKeydown(e, id) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const t = state.tarefas.find(x => x.id === id);
+      const rotineira = t ? t.rotineira : false;
+      app.salvarTextoTarefa(id, e.target.value);
+      app.novaTarefa(rotineira);
+    }
+    if (e.key === 'Backspace' && e.target.value === '') {
+      e.preventDefault();
+      app.removeTarefa(id);
+    }
+  },
 };
 
 // ── Render helpers ─────────────────────────────────────────
@@ -491,32 +664,66 @@ function getEnriched(p) {
   };
 }
 
-function getFiltered() {
-  const { filters, busca, problems } = state;
+const SORT_FIELD = { responsavel_id: 'responsavelNome', aberto_por_id: 'abertoPorNome' };
+
+function buscaFiltrada(problems, busca) {
   const q = busca.trim().toLowerCase();
-  return problems
-    .filter(p =>
-      (filters.setor === 'todos' || p.setor === filters.setor) &&
-      (filters.criticidade === 'todos' || p.criticidade === filters.criticidade) &&
-      (filters.responsavel === 'todos' || p.responsavel_id === filters.responsavel) &&
-      (!q || p.titulo.toLowerCase().includes(q) || (p.descricao || '').toLowerCase().includes(q))
-    )
-    .map(p => getEnriched(p))
-    .sort((a, b) => (a.prazo || '9999').localeCompare(b.prazo || '9999'));
+  return problems.filter(p => !q || p.titulo.toLowerCase().includes(q) || (p.descricao || '').toLowerCase().includes(q));
+}
+
+// Linhas para montar as opções de um painel: filtradas pela busca e por TODAS
+// as outras colunas, exceto a própria (para o painel mostrar todos os valores
+// possíveis daquela coluna, como no Excel).
+function rowsForFilterOptions(excludeCol) {
+  const rows = buscaFiltrada(state.problems, state.busca).map(p => getEnriched(p));
+  return Tabela.applyColFilters(rows, { ...state.colFilters, [excludeCol]: null });
+}
+
+// Opções do painel de filtro após a busca digitada dentro dele (state.filterSearch).
+function visibleFilterOptions(col) {
+  const all = Tabela.buildFilterOptions(rowsForFilterOptions(col), col);
+  const q = (state.filterSearch || '').trim().toLowerCase();
+  return q ? all.filter(o => o.label.toLowerCase().includes(q)) : all;
+}
+
+const FILTER_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16l-6 8v5l-4 2v-7z"/></svg>';
+
+function tarefaIconSvg(paths) {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
+}
+const ICON_REPEAT = tarefaIconSvg('<polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>');
+const ICON_X = tarefaIconSvg('<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>');
+const ICON_PLUS = tarefaIconSvg('<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>');
+
+function getFiltered() {
+  const rows = buscaFiltrada(state.problems, state.busca).map(p => getEnriched(p));
+  const filtered = Tabela.applyColFilters(rows, state.colFilters);
+  return Tabela.sortRows(filtered, SORT_FIELD[state.sort.col] || state.sort.col, state.sort.dir);
 }
 
 // ── Render completo ─────────────────────────────────────────
 function render() {
+  renderCurrentUserSelect();
   renderTabs();
-  renderSelects();
   renderLista();
   renderDashboard();
   renderConfig();
+  renderTarefas();
+}
+
+function renderCurrentUserSelect() {
+  const sel = document.getElementById('current-user-select');
+  const prev = sel.value || state.currentUserId;
+  sel.innerHTML = `<option value="">Selecione</option>` +
+    state.pessoas.map(p => `<option value="${esc(p.id)}" ${p.id === prev ? 'selected' : ''}>${esc(p.nome)}</option>`).join('');
+  if (prev) sel.value = prev;
 }
 
 function renderTabs() {
+  if (state.activeTab === 'config' && !isAdmin()) state.activeTab = 'dashboard'; // perdeu acesso: sai da aba
   const { activeTab } = state;
-  ['lista', 'dashboard', 'config'].forEach(t => {
+  document.getElementById('tab-config').classList.toggle('hidden', !isAdmin());
+  ['lista', 'dashboard', 'config', 'tarefas'].forEach(t => {
     document.getElementById('tab-' + t).classList.toggle('active', activeTab === t);
     document.getElementById('view-' + t).classList.toggle('hidden', activeTab !== t);
   });
@@ -529,21 +736,79 @@ function renderComentarioAutor() {
     state.pessoas.map(p => `<option value="${esc(p.id)}" ${p.id === state.currentUserId ? 'selected' : ''}>${esc(p.nome)}</option>`).join('');
 }
 
-function renderSelects() {
-  // Filtro setores
-  const setorSel = document.getElementById('filter-setor');
-  const prevSetor = setorSel.value;
-  setorSel.innerHTML = `<option value="todos">Todos os setores</option>` +
-    state.setores.map(s => `<option value="${esc(s.nome)}" ${s.nome === prevSetor ? 'selected' : ''}>${esc(s.nome)}</option>`).join('');
+const COLS = [
+  { key: 'titulo', label: 'Título', filtravel: false },
+  { key: 'setor', label: 'Setor', filtravel: true },
+  { key: 'criticidade', label: 'Criticidade', filtravel: true },
+  { key: 'responsavel_id', label: 'Responsável', filtravel: true },
+  { key: 'status', label: 'Status', filtravel: true },
+  { key: 'prazo', label: 'Prazo', filtravel: false },
+  { key: 'aberto_por_id', label: 'Aberto por', filtravel: true },
+];
 
-  // Filtro responsavel
-  const respSel = document.getElementById('filter-responsavel');
-  const prevResp = respSel.value;
-  respSel.innerHTML = `<option value="todos">Todos os responsáveis</option>` +
-    state.pessoas.map(p => `<option value="${esc(p.id)}" ${p.id === prevResp ? 'selected' : ''}>${esc(p.nome)}</option>`).join('');
+function renderFilterPanelHTML(colKey) {
+  const allOptions = Tabela.buildFilterOptions(rowsForFilterOptions(colKey), colKey);
+  const options = visibleFilterOptions(colKey);
+  const draft = state.filterDraft || new Set();
+  const items = options.map(o => `
+    <label class="cf-item">
+      <input type="checkbox" ${draft.has(o.value) ? 'checked' : ''} onchange="app.toggleFilterOption('${colKey}','${esc(o.value)}')">
+      <span>${esc(o.label)}</span><span class="cf-count">${o.count}</span>
+    </label>`).join('') || '<div class="cf-item muted">Nenhum valor encontrado</div>';
+  const search = allOptions.length > 6
+    ? `<div class="cf-search"><input type="text" placeholder="Buscar..." value="${esc(state.filterSearch || '')}" oninput="app.setFilterSearch('${colKey}', this.value)" onclick="event.stopPropagation()"></div>`
+    : '';
+  return `
+    <div class="col-filter-panel" onclick="event.stopPropagation()">
+      <div class="cf-actions"><button type="button" onclick="app.filterSelectAll('${colKey}')">Selecionar tudo</button><button type="button" onclick="app.filterClear('${colKey}')">Limpar</button></div>
+      ${search}
+      <div class="cf-list">${items}</div>
+      <div class="cf-buttons">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="app.cancelFilterPanel()">Cancelar</button>
+        <button type="button" class="btn btn-primary btn-sm" onclick="app.applyFilterPanel()">OK</button>
+      </div>
+    </div>`;
+}
+
+function renderThead() {
+  document.getElementById('thead-row').innerHTML = COLS.map(c => {
+    const activeSort = state.sort.col === c.key;
+    const ind = activeSort ? (state.sort.dir === 'desc' ? '▼' : '▲') : '';
+    const filterOn = c.filtravel && state.colFilters[c.key];
+    const icon = c.filtravel
+      ? `<button type="button" class="filter-icon${filterOn ? ' active' : ''}" onclick="event.stopPropagation();app.openFilterPanel('${c.key}')" aria-label="Filtrar ${esc(c.label)}">${FILTER_ICON_SVG}</button>`
+      : '';
+    const panel = state.openFilterPanel === c.key ? renderFilterPanelHTML(c.key) : '';
+    return `<th class="th"><div class="th-flex"><span class="th-inner" onclick="app.toggleSort('${c.key}')">${esc(c.label)}<span class="sort-ind">${ind}</span></span>${icon}</div>${panel}</th>`;
+  }).join('');
+}
+
+function renderMobileFilters() {
+  const sections = COLS.filter(c => c.filtravel).map(c => {
+    const opts = Tabela.buildFilterOptions(rowsForFilterOptions(c.key), c.key);
+    const active = state.colFilters[c.key];
+    const items = opts.map(o => `
+      <label class="cf-item">
+        <input type="checkbox" ${(!active || active.has(o.value)) ? 'checked' : ''} onchange="app.toggleMobileFilterOption('${c.key}','${esc(o.value)}')">
+        <span>${esc(o.label)}</span><span class="cf-count">${o.count}</span>
+      </label>`).join('') || '<div class="muted">Nenhum valor</div>';
+    return `<div class="mf-section"><div class="mf-section-title">${esc(c.label)}</div>${items}</div>`;
+  }).join('');
+  const sortSection = `<div class="mf-section">
+    <div class="mf-section-title">Ordenar por</div>
+    <select class="select" onchange="app.setMobileSort(this.value, state.sort.dir)">
+      ${COLS.map(c => `<option value="${c.key}" ${state.sort.col === c.key ? 'selected' : ''}>${esc(c.label)}</option>`).join('')}
+    </select>
+    <div class="inline-form" style="margin-top:8px;">
+      <button type="button" class="btn btn-secondary btn-sm" onclick="app.setMobileSort(state.sort.col,'asc')">Crescente</button>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="app.setMobileSort(state.sort.col,'desc')">Decrescente</button>
+    </div>
+  </div>`;
+  document.getElementById('mobile-filters-body').innerHTML = sections + sortSection;
 }
 
 function renderLista() {
+  renderThead();
   const filtered = getFiltered();
   const tbody = document.getElementById('lista-tbody');
   if (filtered.length === 0) {
@@ -572,23 +837,40 @@ function renderDashboard() {
     return counts.map(c => `<div style="width:6px;border-radius:2px;height:${Math.max(4, Math.round(c / max * 26))}px;background:${color};opacity:${c > 0 ? 1 : 0.3};flex-shrink:0;"></div>`).join('');
   };
 
+  const ICONS = {
+    alerta: '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+    octogono: '<polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>',
+    caixa: '<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11Z"/>',
+    andamento: '<polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>',
+    relogio: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+    check: '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>',
+  };
+
+  // Ordem por urgência: o que precisa de ação primeiro, o resumo depois.
   const kpiDefs = [
-    { label: 'Abertos',              color: fgVar('st', 'Aberto'),               pred: p => p.status === 'Aberto' },
-    { label: 'Em andamento',         color: fgVar('st', 'Em andamento'),         pred: p => p.status === 'Em andamento' },
-    { label: 'Aguardando terceiros', color: fgVar('st', 'Aguardando terceiros'), pred: p => p.status === 'Aguardando terceiros' },
-    { label: 'Críticos em aberto',   color: fgVar('crit', 'Alta'),               pred: p => p.criticidade === 'Alta' && OPEN_STATUSES.includes(p.status) },
-    { label: 'Resolvidos',           color: fgVar('st', 'Resolvido'),            pred: p => p.status === 'Resolvido' },
+    { label: 'Vencidos',             color: 'var(--danger)',                     bg: 'var(--danger-soft)',                    icon: ICONS.alerta,    pred: p => p.vencido, foot: 'prazo estourado' },
+    { label: 'Críticos em aberto',   color: fgVar('crit', 'Alta'),               bg: 'var(--crit-alta-bg)',                   icon: ICONS.octogono,  pred: p => p.criticidade === 'Alta' && OPEN_STATUSES.includes(p.status), foot: 'por setor' },
+    { label: 'Abertos',              color: fgVar('st', 'Aberto'),               bg: 'var(--st-aberto-bg)',                   icon: ICONS.caixa,     pred: p => p.status === 'Aberto', foot: 'por setor' },
+    { label: 'Em andamento',         color: fgVar('st', 'Em andamento'),         bg: 'var(--st-em-andamento-bg)',             icon: ICONS.andamento, pred: p => p.status === 'Em andamento', foot: 'por setor' },
+    { label: 'Aguardando terceiros', color: fgVar('st', 'Aguardando terceiros'), bg: 'var(--st-aguardando-terceiros-bg)',     icon: ICONS.relogio,   pred: p => p.status === 'Aguardando terceiros', foot: 'por setor' },
+    { label: 'Resolvidos',           color: fgVar('st', 'Resolvido'),            bg: 'var(--st-resolvido-bg)',                icon: ICONS.check,     pred: p => p.status === 'Resolvido', foot: 'por setor' },
   ];
 
-  document.getElementById('kpi-grid').innerHTML = kpiDefs.map(k => `
-    <div class="card kpi">
-      <div class="kpi-label">${esc(k.label)}</div>
-      <div class="kpi-body">
-        <div class="kpi-value" style="color:${k.color};">${allEnriched.filter(k.pred).length}</div>
+  document.getElementById('kpi-grid').innerHTML = kpiDefs.map(k => {
+    const valor = allEnriched.filter(k.pred).length;
+    return `
+    <div class="card kpi${k.label === 'Vencidos' && valor > 0 ? ' kpi-alert' : ''}">
+      <div class="kpi-top">
+        <div class="kpi-icon" style="background:${k.bg};color:${k.color};">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${k.icon}</svg>
+        </div>
         <div class="kpi-spark">${spark(k.pred, k.color)}</div>
       </div>
-      <div class="kpi-foot">por setor</div>
-    </div>`).join('');
+      <div class="kpi-value" style="color:${k.color};">${valor}</div>
+      <div class="kpi-label">${esc(k.label)}</div>
+      <div class="kpi-foot">${esc(k.foot)}</div>
+    </div>`;
+  }).join('');
 
   const barRow = (label, count, max, color) => `
     <div class="bar-row">
@@ -642,6 +924,39 @@ function renderConfig() {
       </select>
       <button class="round-btn" onclick="app.removePessoa('${esc(p.id)}')" aria-label="Remover ${esc(p.nome)}">×</button>
     </div>`).join('');
+}
+
+function renderTarefaLista(containerId, countId, rotineira) {
+  const itens = state.tarefas.filter(t => t.rotineira === rotineira).sort((a, b) => a.ordem - b.ordem);
+  const feitas = itens.filter(t => Tarefas.estaConcluidaHoje(t)).length;
+  document.getElementById(countId).textContent = itens.length ? `${feitas}/${itens.length}` : '';
+
+  const rows = itens.map(t => {
+    const feita = Tarefas.estaConcluidaHoje(t);
+    return `<div class="tarefa-item${feita ? ' feita' : ''}">
+      <input type="checkbox" class="tarefa-check" ${feita ? 'checked' : ''} onchange="app.toggleTarefa('${t.id}')" aria-label="Marcar como feita">
+      <input id="tarefa-${t.id}" type="text" value="${esc(t.texto)}" placeholder="Nova tarefa..."
+        onkeydown="app.tarefaKeydown(event,'${t.id}')" onblur="app.salvarTextoTarefa('${t.id}', this.value)">
+      <div class="tarefa-actions">
+        <button type="button" class="${t.rotineira ? 'on' : ''}" title="Rotineira" aria-label="Tornar rotineira" onclick="app.toggleRotineira('${t.id}')">${ICON_REPEAT}</button>
+        <button type="button" title="Excluir" aria-label="Excluir tarefa" onclick="app.removeTarefa('${t.id}')">${ICON_X}</button>
+      </div>
+    </div>`;
+  }).join('');
+  const vazio = itens.length === 0 ? '<div class="tarefa-empty">Nada por aqui ainda.</div>' : '';
+  document.getElementById(containerId).innerHTML = rows + vazio +
+    `<button type="button" class="tarefa-add" onclick="app.novaTarefa(${rotineira})">${ICON_PLUS}Nova tarefa</button>`;
+}
+
+function renderTarefas() {
+  const semPessoa = !state.currentUserId;
+  document.getElementById('tarefas-sem-pessoa').classList.toggle('hidden', !semPessoa);
+  document.getElementById('tarefas-conteudo').classList.toggle('hidden', semPessoa);
+  if (semPessoa) return;
+  const dataFmt = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date());
+  document.getElementById('tarefas-data').textContent = dataFmt.charAt(0).toUpperCase() + dataFmt.slice(1);
+  renderTarefaLista('tarefas-rotineiras', 'tarefas-rotineiras-count', true);
+  renderTarefaLista('tarefas-continuas', 'tarefas-continuas-count', false);
 }
 
 // ── Modal render ────────────────────────────────────────────
@@ -778,6 +1093,16 @@ document.getElementById('confirm-cancel').onclick = () => {
   state.deleteTarget = null;
 };
 document.getElementById('confirm-ok').onclick = () => app.doDelete();
+
+// ── Painel de filtro: fecha ao clicar fora ou apertar Esc ──
+document.addEventListener('click', (e) => {
+  if (state.openFilterPanel && !e.target.closest('.col-filter-panel') && !e.target.closest('.filter-icon')) {
+    app.closeFilterPanel();
+  }
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && state.openFilterPanel) app.closeFilterPanel();
+});
 
 // ── Init ────────────────────────────────────────────────────
 document.getElementById('anexos-input').accept = Anexos.ACCEPT;
