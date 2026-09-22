@@ -84,7 +84,7 @@
     .card-title{font-weight:700;font-size:16px;margin-bottom:16px}
     .table-card{overflow:hidden}
     .table{width:100%;border-collapse:collapse}
-    .table th{text-align:left;padding:13px 16px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#fff;background:var(--brand)}
+    .table th{text-align:left;padding:11px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:rgba(255,255,255,.92);background:var(--brand)}
     .table th{white-space:nowrap}
     .table td{padding:14px 16px;font-size:13px;border-bottom:1px solid var(--border)}
     .table td.c-setor,.table td.c-resp,.table td.c-prazo,.table td.c-aberto{white-space:nowrap}
@@ -109,10 +109,12 @@
     .badge-neutral{background:#EDF0F3;color:var(--text-2)}
 
     .th{position:relative}
-    .th-inner{display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none}
+    .th-flex{display:flex;align-items:center;justify-content:space-between;gap:8px}
+    .th-inner{display:flex;align-items:center;gap:5px;cursor:pointer;user-select:none;min-width:0}
     .th-inner:hover{opacity:.85}
-    .sort-ind{font-size:10px;opacity:.9}
-    .filter-icon{border:0;background:rgba(255,255,255,.16);color:#fff;width:20px;height:20px;border-radius:5px;cursor:pointer;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center}
+    .sort-ind{font-size:9px;opacity:.9;flex-shrink:0}
+    .filter-icon{border:0;background:transparent;color:rgba(255,255,255,.65);width:18px;height:18px;border-radius:4px;cursor:pointer;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center}
+    .filter-icon:hover{background:rgba(255,255,255,.14);color:#fff}
     .filter-icon svg{width:10px;height:10px}
     .filter-icon.active{background:#fff;color:var(--brand)}
     .col-filter-panel{position:absolute;top:100%;left:0;margin-top:6px;background:#fff;color:var(--text);border:1px solid var(--border);border-radius:10px;box-shadow:0 10px 28px rgba(15,23,42,.14);width:224px;z-index:60;font-weight:400;text-transform:none;letter-spacing:normal;overflow:hidden}
@@ -134,14 +136,18 @@
     .mf-section{border-bottom:1px solid var(--border);padding:12px 0}
     .mf-section-title{font-weight:700;font-size:14px;margin-bottom:8px}
 
-    .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px}
-    .kpi{padding:20px;border-left:3px solid transparent}
-    .kpi-alert{border-left-color:var(--danger)}
-    .kpi-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-2)}
-    .kpi-body{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-top:8px}
-    .kpi-value{font-size:34px;font-weight:800}
-    .kpi-spark{display:flex;align-items:flex-end;gap:3px;height:30px;border-bottom:1px solid var(--border);padding-bottom:2px}
-    .kpi-foot{font-size:11px;color:var(--text-2);margin-top:6px}
+    .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(172px,1fr));gap:14px}
+    .kpi{padding:18px;transition:box-shadow .15s,transform .15s}
+    .kpi:hover{box-shadow:0 6px 18px rgba(15,23,42,.08);transform:translateY(-1px)}
+    .kpi-alert{box-shadow:inset 0 0 0 1px rgba(180,35,24,.3)}
+    .kpi-alert:hover{box-shadow:inset 0 0 0 1px rgba(180,35,24,.3),0 6px 18px rgba(180,35,24,.1)}
+    .kpi-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px}
+    .kpi-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+    .kpi-icon svg{width:17px;height:17px}
+    .kpi-value{font-size:28px;font-weight:800;line-height:1}
+    .kpi-label{font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:5px}
+    .kpi-spark{display:flex;align-items:flex-end;gap:2.5px;height:24px;flex-shrink:0}
+    .kpi-foot{font-size:11px;color:var(--text-2);margin-top:10px;padding-top:10px;border-top:1px solid var(--bg)}
     .grid-2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr));gap:20px}
     .mt-20{margin-top:20px}.mt-24{margin-top:24px}
     .bar-row{display:flex;align-items:center;gap:12px;margin-bottom:12px}
@@ -249,8 +255,9 @@
       .table td.c-prazo.vencido::before{color:var(--danger)}
 
       .kpi-grid{grid-template-columns:repeat(2,1fr);gap:12px}
-      .kpi{padding:16px}
-      .kpi-value{font-size:28px}
+      .kpi{padding:14px}
+      .kpi-top{margin-bottom:12px}
+      .kpi-value{font-size:24px}
       .bar-label{width:84px}
       .old-item{align-items:flex-start;flex-direction:column}
       .card-pad{padding:18px}
@@ -300,12 +307,12 @@
 
   <header class="app-header">
     <div class="header-left">
-      <span class="app-title">MAPEAMENTO DE ATIVIDADES</span>
-      <span class="header-divider"></span>
       <div class="brand">
         <div class="brand-top"><span class="brand-1">GRUPO</span><span class="brand-2">GPS</span></div>
         <span class="brand-3">Mecanizada</span>
       </div>
+      <span class="header-divider"></span>
+      <span class="app-title">MAPEAMENTO DE ATIVIDADES</span>
     </div>
     <div class="header-tools">
       <input id="busca-problemas" type="text" class="input search" placeholder="Buscar problemas..." oninput="app.onBuscaChange(this.value)">
@@ -321,8 +328,8 @@
     <div class="tabs">
       <button id="tab-dashboard" class="tab active" onclick="app.setTab('dashboard')">Dashboard</button>
       <button id="tab-lista" class="tab" onclick="app.setTab('lista')">Lista</button>
-      <button id="tab-config" class="tab" onclick="app.setTab('config')">Configurações</button>
       <button id="tab-tarefas" class="tab" onclick="app.setTab('tarefas')">Tarefas</button>
+      <button id="tab-config" class="tab" onclick="app.setTab('config')">Configurações</button>
     </div>
 
     <!-- Filtros (lista) -->

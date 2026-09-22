@@ -772,7 +772,7 @@ function renderThead() {
       ? `<button type="button" class="filter-icon${filterOn ? ' active' : ''}" onclick="event.stopPropagation();app.openFilterPanel('${c.key}')" aria-label="Filtrar ${esc(c.label)}">${FILTER_ICON_SVG}</button>`
       : '';
     const panel = state.openFilterPanel === c.key ? renderFilterPanelHTML(c.key) : '';
-    return `<th class="th"><span class="th-inner" onclick="app.toggleSort('${c.key}')">${esc(c.label)}<span class="sort-ind">${ind}</span></span>${icon}${panel}</th>`;
+    return `<th class="th"><div class="th-flex"><span class="th-inner" onclick="app.toggleSort('${c.key}')">${esc(c.label)}<span class="sort-ind">${ind}</span></span>${icon}</div>${panel}</th>`;
   }).join('');
 }
 
@@ -830,25 +830,37 @@ function renderDashboard() {
     return counts.map(c => `<div style="width:6px;border-radius:2px;height:${Math.max(4, Math.round(c / max * 26))}px;background:${color};opacity:${c > 0 ? 1 : 0.3};flex-shrink:0;"></div>`).join('');
   };
 
+  const ICONS = {
+    alerta: '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+    octogono: '<polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>',
+    caixa: '<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11Z"/>',
+    andamento: '<polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>',
+    relogio: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+    check: '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>',
+  };
+
   // Ordem por urgência: o que precisa de ação primeiro, o resumo depois.
   const kpiDefs = [
-    { label: 'Vencidos',             color: 'var(--danger)',                     pred: p => p.vencido, foot: 'prazo estourado' },
-    { label: 'Críticos em aberto',   color: fgVar('crit', 'Alta'),               pred: p => p.criticidade === 'Alta' && OPEN_STATUSES.includes(p.status), foot: 'por setor' },
-    { label: 'Abertos',              color: fgVar('st', 'Aberto'),               pred: p => p.status === 'Aberto', foot: 'por setor' },
-    { label: 'Em andamento',         color: fgVar('st', 'Em andamento'),         pred: p => p.status === 'Em andamento', foot: 'por setor' },
-    { label: 'Aguardando terceiros', color: fgVar('st', 'Aguardando terceiros'), pred: p => p.status === 'Aguardando terceiros', foot: 'por setor' },
-    { label: 'Resolvidos',           color: fgVar('st', 'Resolvido'),            pred: p => p.status === 'Resolvido', foot: 'por setor' },
+    { label: 'Vencidos',             color: 'var(--danger)',                     bg: 'var(--danger-soft)',                    icon: ICONS.alerta,    pred: p => p.vencido, foot: 'prazo estourado' },
+    { label: 'Críticos em aberto',   color: fgVar('crit', 'Alta'),               bg: 'var(--crit-alta-bg)',                   icon: ICONS.octogono,  pred: p => p.criticidade === 'Alta' && OPEN_STATUSES.includes(p.status), foot: 'por setor' },
+    { label: 'Abertos',              color: fgVar('st', 'Aberto'),               bg: 'var(--st-aberto-bg)',                   icon: ICONS.caixa,     pred: p => p.status === 'Aberto', foot: 'por setor' },
+    { label: 'Em andamento',         color: fgVar('st', 'Em andamento'),         bg: 'var(--st-em-andamento-bg)',             icon: ICONS.andamento, pred: p => p.status === 'Em andamento', foot: 'por setor' },
+    { label: 'Aguardando terceiros', color: fgVar('st', 'Aguardando terceiros'), bg: 'var(--st-aguardando-terceiros-bg)',     icon: ICONS.relogio,   pred: p => p.status === 'Aguardando terceiros', foot: 'por setor' },
+    { label: 'Resolvidos',           color: fgVar('st', 'Resolvido'),            bg: 'var(--st-resolvido-bg)',                icon: ICONS.check,     pred: p => p.status === 'Resolvido', foot: 'por setor' },
   ];
 
   document.getElementById('kpi-grid').innerHTML = kpiDefs.map(k => {
     const valor = allEnriched.filter(k.pred).length;
     return `
     <div class="card kpi${k.label === 'Vencidos' && valor > 0 ? ' kpi-alert' : ''}">
-      <div class="kpi-label">${esc(k.label)}</div>
-      <div class="kpi-body">
-        <div class="kpi-value" style="color:${k.color};">${valor}</div>
+      <div class="kpi-top">
+        <div class="kpi-icon" style="background:${k.bg};color:${k.color};">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${k.icon}</svg>
+        </div>
         <div class="kpi-spark">${spark(k.pred, k.color)}</div>
       </div>
+      <div class="kpi-value" style="color:${k.color};">${valor}</div>
+      <div class="kpi-label">${esc(k.label)}</div>
       <div class="kpi-foot">${esc(k.foot)}</div>
     </div>`;
   }).join('');
