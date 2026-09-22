@@ -190,12 +190,7 @@ function renderAuthGate() {
   const logged = !!state.me;
   document.getElementById('login-screen').classList.toggle('hidden', logged);
   document.getElementById('app').classList.toggle('hidden', !logged);
-  if (logged) {
-    document.getElementById('header-user-nome').textContent = state.me.nome;
-  } else {
-    document.getElementById('signup-form').classList.add('hidden');
-    document.getElementById('login-form').classList.remove('hidden');
-  }
+  if (logged) document.getElementById('header-user-nome').textContent = state.me.nome;
   document.querySelectorAll('.admin-only').forEach(el => el.classList.toggle('hidden', !isAdmin()));
 }
 
@@ -303,66 +298,20 @@ const app = {
 
   // ── Sessão ─────────────────────────────────────────────────
   async login() {
-    const email = document.getElementById('login-email').value.trim();
+    const nome = document.getElementById('login-nome').value.trim();
     const senha = document.getElementById('login-senha').value;
     const erroEl = document.getElementById('login-erro');
     erroEl.classList.add('hidden');
+    const email = Auth.nomeToEmail(nome);
+    if (!email) { erroEl.textContent = 'Digite seu nome.'; erroEl.classList.remove('hidden'); return; }
     const { error } = await sb.auth.signInWithPassword({ email, password: senha });
-    if (error) { erroEl.textContent = 'E-mail ou senha inválidos.'; erroEl.classList.remove('hidden'); return; }
+    if (error) { erroEl.textContent = 'Nome ou senha inválidos.'; erroEl.classList.remove('hidden'); return; }
     await boot();
   },
   async logout() {
     await sb.auth.signOut();
     state.me = null;
     renderAuthGate();
-  },
-  async forgotPassword() {
-    const email = document.getElementById('login-email').value.trim();
-    if (!email) { showToast('Digite seu e-mail no campo acima primeiro.'); return; }
-    await sb.auth.resetPasswordForEmail(email);
-    showToast('Se esse e-mail tiver conta, chegou um link para redefinir a senha.');
-  },
-
-  showSignup() {
-    document.getElementById('login-form').classList.add('hidden');
-    document.getElementById('signup-form').classList.remove('hidden');
-  },
-  showLogin() {
-    document.getElementById('signup-form').classList.add('hidden');
-    document.getElementById('login-form').classList.remove('hidden');
-  },
-  async signup() {
-    const nome = document.getElementById('signup-nome').value.trim();
-    const email = document.getElementById('signup-email').value.trim();
-    const senha = document.getElementById('signup-senha').value;
-    const msgEl = document.getElementById('signup-msg');
-    msgEl.classList.add('hidden');
-    if (!nome) { showToast('Digite seu nome.'); return; }
-    if (!Auth.isCompanyEmail(email)) {
-      msgEl.textContent = `Use seu e-mail da empresa (${Auth.COMPANY_DOMAINS.map(d => '@' + d).join(' ou ')}).`;
-      msgEl.style.color = 'var(--danger)';
-      msgEl.classList.remove('hidden');
-      return;
-    }
-    if (senha.length < 6) {
-      msgEl.textContent = 'A senha precisa ter pelo menos 6 caracteres.';
-      msgEl.style.color = 'var(--danger)';
-      msgEl.classList.remove('hidden');
-      return;
-    }
-    showLoading(true, 'Criando conta...');
-    const { data, error } = await sb.auth.signUp({ email, password: senha, options: { data: { nome } } });
-    showLoading(false);
-    if (error) {
-      msgEl.textContent = 'Não foi possível criar a conta: ' + error.message;
-      msgEl.style.color = 'var(--danger)';
-      msgEl.classList.remove('hidden');
-      return;
-    }
-    if (data.session) { await boot(); return; } // confirmação de e-mail desativada: já entra direto
-    msgEl.textContent = `Conta criada! Verifique ${email} para confirmar antes de entrar.`;
-    msgEl.style.color = 'var(--brand)';
-    msgEl.classList.remove('hidden');
   },
 
   // ── Modal ──────────────────────────────────────────────────

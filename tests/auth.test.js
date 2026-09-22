@@ -2,15 +2,20 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const A = require('../auth.js');
 
-test('isCompanyEmail aceita os domínios da empresa', () => {
-  assert.equal(A.isCompanyEmail('fulano@gestaogps.com.br'), true);
-  assert.equal(A.isCompanyEmail('fulano@gpssa.com.br'), true);
-  assert.equal(A.isCompanyEmail('FULANO@GESTAOGPS.COM.BR'), true);
+test('nomeToEmail usa só o primeiro nome, minúsculo, sem acento', () => {
+  assert.equal(A.nomeToEmail('Warlison'), 'warlison@mecanizada.com');
+  assert.equal(A.nomeToEmail('Warlison Abreu'), 'warlison@mecanizada.com');
+  assert.equal(A.nomeToEmail('Ícaro Bernardo'), 'icaro@mecanizada.com');
+  assert.equal(A.nomeToEmail('  Débora  Luisa  '), 'debora@mecanizada.com');
 });
 
-test('isCompanyEmail recusa outros domínios', () => {
-  assert.equal(A.isCompanyEmail('fulano@gmail.com'), false);
-  assert.equal(A.isCompanyEmail('fulano@gestaogps.com.br.evil.com'), false);
-  assert.equal(A.isCompanyEmail(''), false);
-  assert.equal(A.isCompanyEmail(null), false);
+test('nomeToEmail remove espaços e símbolos do primeiro nome', () => {
+  assert.equal(A.nomeToEmail("O'Neil"), 'oneil@mecanizada.com');
+});
+
+test('nomeToEmail devolve string vazia para entrada vazia', () => {
+  assert.equal(A.nomeToEmail(''), '');
+  assert.equal(A.nomeToEmail('   '), '');
+  assert.equal(A.nomeToEmail(null), '');
+  assert.equal(A.nomeToEmail(undefined), '');
 });
