@@ -22,5 +22,10 @@
     if (seguinte == null) return anterior + 1;
     return (anterior + seguinte) / 2;
   }
-  return { todayLocal, estaConcluidaHoje, ordemEntre };
+  function shiftDate(iso, dias) {
+    const d = new Date(iso + 'T00:00:00');
+    d.setDate(d.getDate() + dias);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+  return { todayLocal, estaConcluidaHoje, ordemEntre, shiftDate };
 }));

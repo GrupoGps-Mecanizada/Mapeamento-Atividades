@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>MAPEAMENTO DE ATIVIDADES — Grupo GPS Mecanizada</title>
-  <meta name="description" content="Mapeamento de atividades e problemas operacionais do Grupo GPS Mecanizada.">
+  <meta name="description" content="Mapeamento de atividades operacionais do Grupo GPS Mecanizada.">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%231F3A5F'/><text x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-weight='bold' font-size='18' fill='white'>G</text></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -23,6 +23,9 @@
       --crit-baixa-bg:#E4EEE8;--crit-baixa-fg:#2F5D46;
       --crit-media-bg:#F6EBC8;--crit-media-fg:#6B4E00;
       --crit-alta-bg:#F6E1DE;--crit-alta-fg:#8E2A22;
+      --tipo-reuniao-bg:#DCE8F5;--tipo-reuniao-fg:#1D4C80;
+      --tipo-palestra-bg:#EDE3F6;--tipo-palestra-fg:#6A3FA0;
+      --tipo-outro-bg:#EDF0F3;--tipo-outro-fg:#5B6675;
     }
     *,*::before,*::after{box-sizing:border-box}
     html{-webkit-text-size-adjust:100%}
@@ -37,6 +40,7 @@
 
     #loading-overlay{position:fixed;inset:0;background:rgba(243,245,247,.88);display:flex;align-items:center;justify-content:center;z-index:999;font-size:16px;font-weight:600;color:var(--brand)}
     #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--text);color:#fff;padding:12px 20px;border-radius:var(--radius);font-size:14px;font-weight:600;z-index:1000;pointer-events:none;max-width:calc(100% - 32px);text-align:center}
+    #chart-tooltip{position:fixed;pointer-events:none;background:var(--text);color:#fff;font-size:12px;font-weight:600;padding:6px 11px;border-radius:6px;z-index:1000;box-shadow:0 8px 22px rgba(0,0,0,.2);white-space:nowrap;max-width:min(80vw,320px);text-overflow:ellipsis;overflow:hidden}
 
     .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:40px;padding:0 18px;border-radius:var(--radius);border:1px solid transparent;font-weight:700;cursor:pointer;white-space:nowrap}
     .btn-primary{background:var(--brand);color:#fff}.btn-primary:hover{background:var(--brand-hover)}
@@ -137,45 +141,49 @@
     .mf-section{border-bottom:1px solid var(--border);padding:12px 0}
     .mf-section-title{font-weight:700;font-size:14px;margin-bottom:8px}
 
-    .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(172px,1fr));gap:14px}
-    .kpi{padding:18px;transition:box-shadow .15s,transform .15s}
-    .kpi:hover{box-shadow:0 6px 18px rgba(15,23,42,.08);transform:translateY(-1px)}
-    .kpi-alert{box-shadow:inset 0 0 0 1px rgba(180,35,24,.3)}
-    .kpi-alert:hover{box-shadow:inset 0 0 0 1px rgba(180,35,24,.3),0 6px 18px rgba(180,35,24,.1)}
-    .kpi-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px}
-    .kpi-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-    .kpi-icon svg{width:17px;height:17px}
-    .kpi-value{font-size:28px;font-weight:800;line-height:1}
-    .kpi-label{font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:5px}
-    .kpi-spark{display:flex;align-items:flex-end;gap:2.5px;height:24px;flex-shrink:0}
-    .kpi-foot{font-size:11px;color:var(--text-2);margin-top:10px;padding-top:10px;border-top:1px solid var(--bg)}
+    .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:16px}
+    .kpi{padding:22px 20px;border-radius:14px;transition:box-shadow .18s,transform .18s;cursor:pointer;opacity:0;animation-fill-mode:forwards}
+    .kpi:hover{box-shadow:0 10px 26px rgba(15,23,42,.14);transform:translateY(-3px)}
+    .kpi:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+    .kpi-alert{box-shadow:inset 0 0 0 2px var(--danger)}
+    .kpi-alert:hover{box-shadow:inset 0 0 0 2px var(--danger),0 10px 26px rgba(180,35,24,.18)}
+    .kpi-label{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;opacity:.8}
+    .kpi-value{font-size:46px;font-weight:800;line-height:1;letter-spacing:-.02em;margin:10px 0 14px}
+    .kpi-foot{margin-top:0}
+    .kpi-trend{font-size:11px;font-weight:700}
+    .kpi-trend-bad{color:var(--danger)}
+    .kpi-trend-good{color:#1F5C3E}
+    .kpi-trend-neutral{opacity:.65}
     .grid-2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr));gap:20px}
     .mt-20{margin-top:20px}.mt-24{margin-top:24px}
-    .bar-row{display:flex;align-items:center;gap:12px;margin-bottom:12px}
-    .bar-label{width:110px;font-size:13px;color:var(--text-2);flex-shrink:0}
-    .bar-track{flex:1;height:10px;background:#E8ECF0;border-radius:6px;overflow:hidden}
-    .bar-fill{height:10px;border-radius:6px}
-    .bar-count{width:24px;text-align:right;font-size:13px;font-weight:700}
-    .old-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 0;border-bottom:1px solid #E8ECF0}
+    .old-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 8px;margin:0 -8px;border-bottom:1px solid #E8ECF0;border-radius:8px;cursor:pointer;transition:background .12s}
+    .old-item:hover,.old-item:focus-visible{background:var(--bg);outline:none}
     .old-main{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
     .old-title{font-size:14px;font-weight:600}
     .muted{font-size:13px;color:var(--text-2)}
 
     .chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
     .chip{display:flex;align-items:center;gap:6px;background:#EDF0F3;border-radius:999px;padding:6px 6px 6px 14px;font-size:13px;font-weight:600}
+    .chip-input{border:0;background:none;font:inherit;font-weight:600;color:inherit;padding:2px 1px;min-width:20px;border-radius:4px}
+    .chip-input:hover{background:rgba(0,0,0,.05)}
+    .chip-input:focus{outline:2px solid var(--brand);outline-offset:1px;background:#fff}
     .inline-form{display:flex;gap:8px;flex-wrap:wrap}
     .inline-form .input{flex:1;min-width:160px}
     .inline-form .select{width:auto}
     .person-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #E8ECF0}
-    .person-row .name{flex:1;font-size:14px;font-weight:600;min-width:0}
+    .person-row .name-input{flex:1;font-size:14px;font-weight:600;min-width:0;border:1px solid transparent;background:none;padding:5px 7px;border-radius:6px;transition:background .1s,border-color .1s;color:var(--text)}
+    .person-row .name-input:hover{background:var(--bg)}
+    .person-row .name-input:focus{outline:none;background:#fff;border-color:var(--border-input)}
     .person-row .select{width:auto;min-height:34px;padding:6px 10px;font-size:13px}
 
-    .modal-overlay{position:fixed;inset:0;background:rgba(15,23,42,.5);display:flex;align-items:center;justify-content:center;padding:24px;z-index:50}
-    .modal{background:#fff;border-radius:12px;width:min(560px,100%);max-height:88vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.2)}
-    .modal-head{display:flex;align-items:center;justify-content:space-between;padding:22px 28px 14px}
+    /* Painel lateral estilo Notion: desliza da direita, o resto do app fica visível (não escurecido de verdade) à esquerda. */
+    .modal-overlay{position:fixed;inset:0;background:rgba(15,23,42,.12);display:flex;align-items:stretch;justify-content:flex-end;padding:0;z-index:50}
+    .modal{background:#fff;border-radius:0;width:min(600px,94vw);height:100vh;height:100dvh;max-height:none;display:flex;flex-direction:column;box-shadow:-16px 0 48px rgba(15,23,42,.16);border-left:1px solid var(--border);animation:slideInRight .24s cubic-bezier(.16,1,.3,1)}
+    @keyframes slideInRight{from{transform:translateX(100%)}to{transform:translateX(0)}}
+    .modal-head{display:flex;align-items:center;justify-content:space-between;padding:22px 28px 14px;flex-shrink:0}
     .modal-head h2{margin:0;font-size:20px;font-weight:700}
     .modal-body{padding:6px 28px 18px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:16px}
-    .modal-actions{display:flex;align-items:center;gap:10px;padding:14px 28px;border-top:1px solid var(--border);background:#fff;border-radius:0 0 12px 12px}
+    .modal-actions{display:flex;align-items:center;gap:10px;padding:14px 28px;border-top:1px solid var(--border);background:#fff;flex-shrink:0}
     .form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
     .pills{display:flex;flex-wrap:wrap;gap:8px}
     .pill{padding:8px 14px;border-radius:999px;font-size:13px;font-weight:600;cursor:pointer;background:#fff;color:var(--text);border:1px solid var(--border-input)}
@@ -198,35 +206,79 @@
     .anexo-actions{display:flex;gap:6px;flex-shrink:0}
     .clip{display:inline-flex;align-items:center;gap:3px;margin-left:8px;color:var(--text-2);font-size:12px;font-weight:600;vertical-align:middle}
 
-    .tarefas-data{font-size:13px;font-weight:600;color:var(--text-2);margin-bottom:16px}
-    .tarefas-header{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
-    .tarefas-count{font-size:11.5px;font-weight:700;color:var(--text-2);background:var(--bg);border-radius:999px;padding:3px 10px;flex-shrink:0}
-    .tarefas-list{margin-top:14px}
-    .tarefa-item{display:flex;align-items:center;gap:12px;padding:11px 2px;border-bottom:1px solid #F0F2F4}
-    .tarefa-item:last-of-type{border-bottom:0}
-    .tarefa-check{appearance:none;-webkit-appearance:none;width:20px;height:20px;border-radius:50%;border:1.5px solid var(--border-input);flex-shrink:0;cursor:pointer;position:relative;transition:background .15s,border-color .15s;background:#fff}
+    .tarefas-datanav{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px}
+    .tarefas-data{font-size:19px;font-weight:800;color:var(--text);letter-spacing:-.01em}
+    .tarefas-datanav-controls{display:flex;align-items:center;gap:6px}
+    .icon-btn-sm{width:32px;height:32px;border-radius:8px;border:1px solid var(--border-input);background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text-2);flex-shrink:0}
+    .icon-btn-sm svg{width:15px;height:15px}
+    .icon-btn-sm:hover{background:var(--bg);color:var(--brand)}
+    .icon-btn-sm:disabled{opacity:.35;cursor:default;pointer-events:none}
+    .tarefas-data-input{min-height:32px;padding:5px 8px;font-size:12.5px;width:auto}
+    .tarefas-historico-aviso{background:var(--brand-soft);color:var(--brand);font-size:12.5px;font-weight:600;padding:9px 14px;border-radius:10px;margin-bottom:16px}
+    .tarefas-header{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+    .tarefas-filtro-pills .pill{padding:6px 14px;font-size:12.5px}
+    .tarefas-count{font-size:11.5px;font-weight:700;color:var(--brand);background:var(--brand-soft);border-radius:999px;padding:4px 11px;flex-shrink:0}
+    .tarefas-list{margin-top:16px;display:flex;flex-direction:column;gap:8px}
+    .tarefa-item{display:flex;align-items:center;gap:12px;padding:13px 14px;border-radius:12px;background:var(--row-alt);border:1px solid transparent;transition:background .15s,border-color .15s,box-shadow .15s}
+    .tarefa-item:hover,.tarefa-item:focus-within{background:#fff;border-color:var(--border);box-shadow:0 3px 12px rgba(15,23,42,.06)}
+    .tarefa-item.feita{background:transparent}
+    .tarefa-check{appearance:none;-webkit-appearance:none;width:22px;height:22px;border-radius:50%;border:1.5px solid var(--border-input);flex-shrink:0;cursor:pointer;position:relative;transition:background .15s,border-color .15s;background:#fff}
     .tarefa-check:hover{border-color:var(--brand)}
     .tarefa-check:checked{background:var(--brand);border-color:var(--brand)}
-    .tarefa-check:checked::after{content:"";position:absolute;left:6px;top:2px;width:5px;height:9px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
-    .tarefa-item input[type=text]{flex:1;min-width:0;border:0;background:none;font-size:14.5px;padding:6px 6px;border-radius:6px;transition:background .1s}
+    .tarefa-check:checked::after{content:"";position:absolute;left:7px;top:3px;width:5px;height:9px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg);animation:checkPop .18s ease}
+    @keyframes checkPop{from{transform:rotate(45deg) scale(.4);opacity:0}to{transform:rotate(45deg) scale(1);opacity:1}}
+    .tarefa-item input[type=text]{flex:1;min-width:0;border:0;background:none;font-size:14.5px;padding:6px 8px;border-radius:8px;transition:background .1s}
     .tarefa-item input[type=text]:focus{outline:none;background:var(--bg)}
     .tarefa-item input[type=text]::placeholder{color:#BCC3CB}
     .tarefa-item.feita input[type=text]{text-decoration:line-through;color:var(--text-2)}
+    .tarefa-item-historico{cursor:default}
+    .tarefa-check-static{width:22px;height:22px;border-radius:50%;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+    .tarefa-check-static svg{width:12px;height:12px}
+    .tarefa-historico-texto{flex:1;font-size:14.5px;text-decoration:line-through;color:var(--text-2);padding:6px 8px}
     .tarefa-actions{display:flex;gap:2px;opacity:0;flex-shrink:0;transition:opacity .1s}
     .tarefa-item:hover .tarefa-actions,.tarefa-item:focus-within .tarefa-actions{opacity:1}
-    .tarefa-actions button{border:0;background:none;cursor:pointer;color:var(--text-2);width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .1s,color .1s}
+    .tarefa-actions button{border:0;background:none;cursor:pointer;color:var(--text-2);width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .1s,color .1s}
     .tarefa-actions button:hover{background:var(--bg)}
     .tarefa-actions button svg{width:14px;height:14px}
-    .tarefa-actions button.on{color:#fff;background:var(--brand)}
-    .tarefa-actions button.on:hover{background:var(--brand-hover)}
-    .tarefa-add{display:flex;align-items:center;gap:8px;padding:10px 2px;margin-top:2px;border:0;background:none;cursor:pointer;color:var(--text-2);font-size:13.5px;font-weight:600;width:100%;text-align:left;border-radius:6px}
-    .tarefa-add:hover{background:var(--bg);color:var(--brand)}
+    .tarefa-badge-rotineira{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:6px 11px;border-radius:999px;border:1.5px solid var(--border-input);background:#fff;color:var(--text-2);cursor:pointer;flex-shrink:0;transition:background .12s,border-color .12s,color .12s}
+    .tarefa-badge-rotineira svg{width:12px;height:12px;flex-shrink:0}
+    .tarefa-badge-rotineira:hover{border-color:var(--brand);color:var(--brand)}
+    .tarefa-badge-rotineira.on{background:var(--brand-soft);border-color:var(--brand);color:var(--brand)}
+    .tarefa-add{display:flex;align-items:center;gap:8px;padding:12px 14px;margin-top:2px;border:1.5px dashed var(--border-input);background:none;cursor:pointer;color:var(--text-2);font-size:13.5px;font-weight:600;width:100%;text-align:left;border-radius:12px;transition:background .12s,border-color .12s,color .12s}
+    .tarefa-add:hover{background:var(--brand-soft);border-color:var(--brand);color:var(--brand)}
     .tarefa-add svg{width:15px;height:15px;flex-shrink:0}
-    .tarefa-empty{font-size:13px;color:#BCC3CB;font-style:italic;padding:2px 2px 4px}
+    .tarefa-empty{font-size:13.5px;color:var(--text-2);text-align:center;padding:22px 4px;background:var(--row-alt);border-radius:12px}
     .confirm-box{background:#fff;border-radius:12px;padding:28px 32px;max-width:420px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,.2)}
     .confirm-title{font-size:20px;font-weight:700;margin-bottom:10px}
     .confirm-text{font-size:14px;color:var(--text-2);margin-bottom:24px;line-height:1.5}
     .confirm-actions{display:flex;justify-content:flex-end;gap:10px}
+
+    /* ── Agenda (calendário) ──────────────────────────── */
+    .agenda-nav{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin:20px 0 14px}
+    .agenda-nav-title{font-size:19px;font-weight:800;letter-spacing:-.01em;text-transform:capitalize}
+    .agenda-nav-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+    .agenda-legenda{display:flex;gap:16px;margin-bottom:14px;flex-wrap:wrap}
+    .agenda-legenda-item{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--text-2);font-weight:600}
+    .agenda-legenda-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+    .agenda-card{padding:0;overflow:hidden}
+    .agenda-weekdays{display:grid;grid-template-columns:repeat(7,1fr);background:var(--brand)}
+    .agenda-weekdays span{padding:10px 8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;text-align:center;color:rgba(255,255,255,.92)}
+    .agenda-grid{display:grid;grid-template-columns:repeat(7,1fr)}
+    .agenda-dia{min-height:108px;padding:8px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);cursor:pointer;transition:background .12s;display:flex;flex-direction:column;gap:4px}
+    .agenda-dia:hover{background:var(--bg)}
+    .agenda-dia:nth-child(7n){border-right:0}
+    .agenda-dia.outro-mes{background:#FAFBFC}
+    .agenda-dia.outro-mes .agenda-dia-num{opacity:.4}
+    .agenda-dia.hoje{background:var(--brand-soft)}
+    .agenda-dia.hoje .agenda-dia-num{background:var(--brand);color:#fff}
+    .agenda-dia-num{font-size:12.5px;font-weight:700;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+    .agenda-eventos{display:flex;flex-direction:column;gap:3px;min-width:0}
+    .agenda-evento{font-size:10.5px;font-weight:600;padding:3px 6px;border-radius:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+    .agenda-evento-hora{font-weight:800;margin-right:3px}
+    .agenda-evento-mais{font-size:10px;font-weight:700;color:var(--text-2);padding:2px 6px;cursor:default}
+    .tipo-reuniao{background:var(--tipo-reuniao-bg);color:var(--tipo-reuniao-fg)}
+    .tipo-palestra{background:var(--tipo-palestra-bg);color:var(--tipo-palestra-fg)}
+    .tipo-outro{background:var(--tipo-outro-bg);color:var(--tipo-outro-fg)}
 
     /* ── Celular (≤ 768px) ─────────────────────────────── */
     @media (max-width:768px){
@@ -272,30 +324,35 @@
       .table td.c-prazo.vencido::before{color:var(--danger)}
 
       .kpi-grid{grid-template-columns:repeat(2,1fr);gap:12px}
-      .kpi{padding:14px}
-      .kpi-top{margin-bottom:12px}
-      .kpi-value{font-size:24px}
-      .bar-label{width:84px}
+      .kpi{padding:16px}
+      .kpi-value{font-size:32px;margin:6px 0 10px}
       .old-item{align-items:flex-start;flex-direction:column}
       .card-pad{padding:18px}
       .person-row{flex-wrap:wrap}
-      .person-row .name{flex:1 0 calc(100% - 100px)}
+      .person-row .name-input{flex:1 0 calc(100% - 100px)}
       .person-row .select{min-height:44px}
       .inline-form .select,.inline-form .btn{width:100%}
 
-      .modal-overlay{padding:0;align-items:stretch}
-      .modal{width:100%;max-height:none;height:100vh;height:100dvh;border-radius:0}
+      .modal{width:100%}
       .modal-head{padding:16px}
       .modal-body{padding:4px 16px 16px}
-      .modal-actions{padding:12px 16px calc(12px + env(safe-area-inset-bottom));border-radius:0}
+      .modal-actions{padding:12px 16px calc(12px + env(safe-area-inset-bottom))}
       .form-row{grid-template-columns:1fr}
       .confirm-box{padding:22px}
       .confirm-actions .btn{flex:1}
       .tarefa-actions{opacity:1}
+      .tarefa-badge-rotineira{padding:6px 8px}
+      .tarefa-badge-rotineira .badge-text{display:none}
       .anexo{flex-wrap:wrap}
       .anexo-info{flex:1 1 calc(100% - 60px)}
       .anexo-actions{flex:1 0 100%}
       .anexo-actions .btn{flex:1}
+
+      .agenda-dia{min-height:64px;padding:4px;gap:2px}
+      .agenda-dia-num{width:18px;height:18px;font-size:11px}
+      .agenda-evento{font-size:8.5px;padding:1px 3px}
+      .agenda-nav-title{font-size:16px}
+      .agenda-nav-controls .btn-sm{padding:0 10px}
     }
   </style>
 </head>
@@ -307,10 +364,13 @@
 <!-- Toast -->
 <div id="toast" class="hidden" role="status" aria-live="polite"></div>
 
+<!-- Tooltip dos gráficos do Dashboard -->
+<div id="chart-tooltip" class="hidden" role="tooltip"></div>
+
 <!-- Confirm delete -->
 <div id="confirm-modal" class="modal-overlay hidden" style="z-index:200">
   <div class="confirm-box fade-in">
-    <div class="confirm-title">Excluir problema?</div>
+    <div class="confirm-title">Excluir atividade?</div>
     <div id="confirm-text" class="confirm-text"></div>
     <div class="confirm-actions">
       <button id="confirm-cancel" class="btn btn-secondary">Cancelar</button>
@@ -348,12 +408,12 @@
       <span class="app-title">MAPEAMENTO DE ATIVIDADES</span>
     </div>
     <div class="header-tools">
-      <input id="busca-problemas" type="text" class="input search" placeholder="Buscar problemas..." oninput="app.onBuscaChange(this.value)">
+      <input id="busca-problemas" type="text" class="input search" placeholder="Buscar atividades..." oninput="app.onBuscaChange(this.value)">
       <div class="header-user">
         <span id="header-user-nome"></span>
         <button class="btn btn-light btn-sm" onclick="app.logout()">Sair</button>
       </div>
-      <button id="btn-new" class="btn btn-light" onclick="app.openNew()">+ Novo problema</button>
+      <button id="btn-new" class="btn btn-light" onclick="app.openNew()">+ Nova atividade</button>
     </div>
   </header>
 
@@ -362,12 +422,14 @@
       <button id="tab-dashboard" class="tab active" onclick="app.setTab('dashboard')">Dashboard</button>
       <button id="tab-lista" class="tab" onclick="app.setTab('lista')">Lista</button>
       <button id="tab-tarefas" class="tab" onclick="app.setTab('tarefas')">Tarefas</button>
+      <button id="tab-agenda" class="tab" onclick="app.setTab('agenda')">Agenda</button>
       <button id="tab-config" class="tab" onclick="app.setTab('config')">Configurações</button>
     </div>
 
     <!-- Filtros (lista) -->
     <div id="filters-bar" class="filters hidden">
       <button id="btn-filtros-mobile" class="btn btn-secondary" onclick="app.openMobileFilters()">Filtros</button>
+      <span id="quick-filter-chip"></span>
     </div>
   </div>
 
@@ -388,17 +450,7 @@
     <!-- ABA: DASHBOARD -->
     <div id="view-dashboard">
       <div id="kpi-grid" class="kpi-grid"></div>
-      <div class="grid-2 mt-24">
-        <div class="card card-pad">
-          <div class="card-title">Problemas em aberto por setor</div>
-          <div id="bar-setor"></div>
-        </div>
-        <div class="card card-pad">
-          <div class="card-title">Problemas em aberto por criticidade</div>
-          <div id="bar-criticidade"></div>
-        </div>
-      </div>
-      <div class="card card-pad mt-20">
+      <div class="card card-pad mt-24">
         <div class="card-title" style="margin-bottom:12px;">Mais antigos em aberto</div>
         <div id="antigos-list"></div>
       </div>
@@ -437,21 +489,51 @@
         <div class="muted">Escolha quem você é no cabeçalho ("Você é") para ver suas tarefas.</div>
       </div>
       <div id="tarefas-conteudo">
-        <div id="tarefas-data" class="tarefas-data"></div>
+        <div class="tarefas-datanav">
+          <div id="tarefas-data" class="tarefas-data"></div>
+          <div class="tarefas-datanav-controls">
+            <button type="button" class="icon-btn-sm" onclick="app.tarefasDataAnterior()" aria-label="Dia anterior"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+            <input type="date" id="tarefas-data-input" class="input tarefas-data-input" onchange="app.onTarefasDataInput(this.value)" aria-label="Escolher outra data">
+            <button type="button" class="icon-btn-sm" id="tarefas-data-next-btn" onclick="app.tarefasDataProxima()" aria-label="Próximo dia"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
+            <button type="button" class="btn btn-secondary btn-sm hidden" id="tarefas-data-hoje-btn" onclick="app.tarefasDataHoje()">Hoje</button>
+          </div>
+        </div>
+        <div id="tarefas-historico-aviso" class="tarefas-historico-aviso hidden">Mostrando o que foi concluído nesse dia — histórico, sem edição.</div>
         <div class="card card-pad">
           <div class="tarefas-header">
-            <div class="card-title" style="margin-bottom:0;">Rotineiras <span class="muted" style="font-weight:400;">— desmarcam sozinhas todo dia</span></div>
-            <span id="tarefas-rotineiras-count" class="tarefas-count"></span>
+            <div class="pills tarefas-filtro-pills">
+              <button type="button" class="pill active" data-filtro="todas" onclick="app.setTarefasFiltro('todas')">Todas</button>
+              <button type="button" class="pill" data-filtro="rotineiras" onclick="app.setTarefasFiltro('rotineiras')">Rotineiras</button>
+              <button type="button" class="pill" data-filtro="outras" onclick="app.setTarefasFiltro('outras')">Outras</button>
+            </div>
+            <span id="tarefas-count" class="tarefas-count"></span>
           </div>
-          <div id="tarefas-rotineiras" class="tarefas-list"></div>
+          <div id="tarefas-lista" class="tarefas-list"></div>
         </div>
-        <div class="card card-pad mt-20">
-          <div class="tarefas-header">
-            <div class="card-title" style="margin-bottom:0;">Outras tarefas</div>
-            <span id="tarefas-continuas-count" class="tarefas-count"></span>
-          </div>
-          <div id="tarefas-continuas" class="tarefas-list"></div>
+      </div>
+    </div>
+
+    <!-- ABA: AGENDA -->
+    <div id="view-agenda" class="hidden">
+      <div class="agenda-nav">
+        <div id="agenda-mes-titulo" class="agenda-nav-title"></div>
+        <div class="agenda-nav-controls">
+          <button type="button" class="icon-btn-sm" onclick="app.agendaMesAnterior()" aria-label="Mês anterior"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="app.agendaMesHoje()">Hoje</button>
+          <button type="button" class="icon-btn-sm" onclick="app.agendaMesProximo()" aria-label="Próximo mês"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
+          <button type="button" class="btn btn-primary btn-sm" onclick="app.openNewAgendamento()">+ Novo agendamento</button>
         </div>
+      </div>
+      <div class="agenda-legenda">
+        <span class="agenda-legenda-item"><span class="agenda-legenda-dot tipo-reuniao"></span>Reunião</span>
+        <span class="agenda-legenda-item"><span class="agenda-legenda-dot tipo-palestra"></span>Palestra</span>
+        <span class="agenda-legenda-item"><span class="agenda-legenda-dot tipo-outro"></span>Outro</span>
+      </div>
+      <div class="card agenda-card">
+        <div class="agenda-weekdays">
+          <span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span>
+        </div>
+        <div id="agenda-grid" class="agenda-grid"></div>
       </div>
     </div>
 
@@ -461,7 +543,7 @@
 
 <!-- MODAL -->
 <div id="modal-overlay" class="modal-overlay hidden" onclick="app.closeModal()">
-  <div class="modal fade-in" onclick="event.stopPropagation()" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+  <div class="modal" onclick="event.stopPropagation()" role="dialog" aria-modal="true" aria-labelledby="modal-title">
     <div class="modal-head">
       <h2 id="modal-title"></h2>
       <button class="icon-btn" onclick="app.closeModal()" aria-label="Fechar">×</button>
@@ -476,7 +558,7 @@
       <!-- Descrição -->
       <div>
         <label class="lbl" for="draft-descricao">Descrição</label>
-        <textarea id="draft-descricao" class="textarea" placeholder="Detalhe o problema..." rows="3"></textarea>
+        <textarea id="draft-descricao" class="textarea" placeholder="Detalhe a atividade..." rows="3"></textarea>
       </div>
       <!-- Setor + Criticidade -->
       <div class="form-row">
@@ -548,6 +630,64 @@
       <span class="spacer"></span>
       <button class="btn btn-secondary" onclick="app.closeModal()">Cancelar</button>
       <button id="btn-save" class="btn btn-primary" onclick="app.saveDraft()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL AGENDAMENTO -->
+<div id="modal-agendamento-overlay" class="modal-overlay hidden" onclick="app.closeAgendamentoModal()">
+  <div class="modal" onclick="event.stopPropagation()" role="dialog" aria-modal="true" aria-labelledby="agendamento-modal-title">
+    <div class="modal-head">
+      <h2 id="agendamento-modal-title"></h2>
+      <button class="icon-btn" onclick="app.closeAgendamentoModal()" aria-label="Fechar">×</button>
+    </div>
+    <div class="modal-body">
+      <div>
+        <label class="lbl" for="ag-titulo">Título</label>
+        <input id="ag-titulo" type="text" class="input" placeholder="Ex: Reunião de planejamento semanal">
+      </div>
+      <div class="form-row">
+        <div>
+          <label class="lbl" for="ag-tipo">Tipo</label>
+          <select id="ag-tipo" class="select">
+            <option value="Reunião">Reunião</option>
+            <option value="Palestra">Palestra</option>
+            <option value="Outro">Outro</option>
+          </select>
+        </div>
+        <div>
+          <label class="lbl" for="ag-data">Data</label>
+          <input id="ag-data" type="date" class="input">
+        </div>
+      </div>
+      <div class="form-row">
+        <div>
+          <label class="lbl" for="ag-hora-inicio">Início</label>
+          <input id="ag-hora-inicio" type="time" class="input">
+        </div>
+        <div>
+          <label class="lbl" for="ag-hora-fim">Fim</label>
+          <input id="ag-hora-fim" type="time" class="input">
+        </div>
+      </div>
+      <div>
+        <label class="lbl" for="ag-local">Local</label>
+        <input id="ag-local" type="text" class="input" placeholder="Sala, endereço ou link...">
+      </div>
+      <div>
+        <label class="lbl" for="ag-responsavel">Responsável</label>
+        <select id="ag-responsavel" class="select"><option value="">Selecione</option></select>
+      </div>
+      <div>
+        <label class="lbl" for="ag-descricao">Descrição / pauta</label>
+        <textarea id="ag-descricao" class="textarea" rows="3" placeholder="Detalhes, pauta, link da reunião..."></textarea>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button id="ag-btn-delete" class="btn btn-danger-soft hidden" onclick="app.confirmDeleteAgendamento()">Excluir</button>
+      <span class="spacer"></span>
+      <button class="btn btn-secondary" onclick="app.closeAgendamentoModal()">Cancelar</button>
+      <button id="ag-btn-save" class="btn btn-primary" onclick="app.saveAgendamento()">Salvar</button>
     </div>
   </div>
 </div>

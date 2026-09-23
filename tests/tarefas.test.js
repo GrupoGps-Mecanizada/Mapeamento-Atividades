@@ -25,3 +25,10 @@ test('ordemEntre no início (sem anterior) e no fim (sem seguinte)', () => {
 test('ordemEntre em lista vazia devolve um número', () => {
   assert.equal(typeof Tf.ordemEntre(null, null), 'number');
 });
+
+test('shiftDate soma e subtrai dias respeitando virada de mês', () => {
+  assert.equal(Tf.shiftDate('2026-09-22', 1), '2026-09-23');
+  assert.equal(Tf.shiftDate('2026-09-22', -1), '2026-09-21');
+  assert.equal(Tf.shiftDate('2026-09-30', 1), '2026-10-01');
+  assert.equal(Tf.shiftDate('2026-10-01', -1), '2026-09-30');
+});
