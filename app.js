@@ -1544,7 +1544,11 @@ document.getElementById('confirm-ok').onclick = () => app.doDelete();
 
 // ── Painel de filtro: fecha ao clicar fora ou apertar Esc ──
 document.addEventListener('click', (e) => {
-  if (state.openFilterPanel && !e.target.closest('.col-filter-panel') && !e.target.closest('.filter-icon')) {
+  // Os botões do painel re-renderizam a lista, então e.target já saiu do DOM aqui;
+  // o caminho do evento (composedPath) ainda guarda onde o clique realmente foi.
+  const path = e.composedPath ? e.composedPath() : [];
+  const dentro = path.some(n => n.classList && (n.classList.contains('col-filter-panel') || n.classList.contains('filter-icon')));
+  if (state.openFilterPanel && !dentro) {
     app.closeFilterPanel();
   }
 });

@@ -87,7 +87,9 @@
     .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius)}
     .card-pad{padding:22px}
     .card-title{font-weight:700;font-size:16px;margin-bottom:16px}
-    .table-card{overflow:hidden}
+    .table-card{overflow:visible} /* o painel de filtro sai do card; não pode ser cortado */
+    .table th:first-child{border-top-left-radius:var(--radius)}
+    .table th:last-child{border-top-right-radius:var(--radius)}
     .table{width:100%;border-collapse:collapse}
     .table th{text-align:left;padding:11px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:rgba(255,255,255,.92);background:var(--brand)}
     .table th{white-space:nowrap}
